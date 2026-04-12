@@ -52,6 +52,18 @@ export default function LandingPage() {
           </div>
           <nav className="flex items-center gap-6">
             <a
+              href="/docs"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Docs
+            </a>
+            <a
+              href="/privacy"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Privacy
+            </a>
+            <a
               href="https://github.com"
               target="_blank"
               rel="noopener noreferrer"
@@ -59,12 +71,6 @@ export default function LandingPage() {
             >
               <Star className="h-3.5 w-3.5" />
               Star on GitHub
-            </a>
-            <a
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Docs
             </a>
           </nav>
         </div>
@@ -398,10 +404,16 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-4">
             <a
-              href="#"
+              href="/docs"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Docs
+            </a>
+            <a
+              href="/privacy"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Privacy
             </a>
             <a
               href="https://github.com"
