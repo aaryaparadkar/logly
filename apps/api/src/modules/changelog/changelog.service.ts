@@ -24,7 +24,7 @@ import {
   VersionDto,
 } from "./dto/changelog.dto";
 
-interface ChangelogData {
+export interface ChangelogData {
   name: string;
   logoUrl?: string;
   versions: Array<{
@@ -35,7 +35,7 @@ interface ChangelogData {
   }>;
 }
 
-interface ChangelogStats {
+export interface ChangelogStats {
   versions: number;
   changes: number;
   contributors: number;
@@ -95,7 +95,7 @@ export class ChangelogService {
 
   private fallbackCategorize(commits: GithubCommit[]): CategorizedCommit[] {
     return commits.map((commit) => {
-      const msg = commit.message.toLowerCase();
+      const msg = (commit.commit?.message || "").toLowerCase();
       let type: ChangeType = "chore";
 
       if (
@@ -122,8 +122,11 @@ export class ChangelogService {
 
       return {
         type,
-        title: commit.message.split("\n")[0].slice(0, 80),
-        description: commit.message.split("\n")[0],
+        title: ((commit.commit?.message || "").split("\n")[0] || "").slice(
+          0,
+          80,
+        ),
+        description: (commit.commit?.message || "").split("\n")[0] || "",
         commit,
       };
     });
@@ -135,17 +138,18 @@ export class ChangelogService {
   ): { data: ChangelogData; stats: ChangelogStats } {
     const contributors = new Set<string>();
     const entries: ChangeEntry[] = commits.map((c, index) => {
-      if (c.commit.author?.email) {
-        contributors.add(c.commit.author.email);
+      const author = c.commit.commit?.author;
+      if (author?.email) {
+        contributors.add(author.email);
       }
       return {
         id: `entry-${index}-${c.commit.sha.slice(0, 6)}`,
         type: c.type,
         title: c.title,
-        description: c.description,
+        description: c.description || "",
         commitHash: c.commit.sha,
-        author: c.commit.author?.name || "Unknown",
-        date: c.commit.author?.date || new Date().toISOString(),
+        author: author?.name || c.commit.author?.login || "Unknown",
+        date: author?.date || new Date().toISOString(),
       };
     });
 
@@ -154,7 +158,7 @@ export class ChangelogService {
     const version: ChangelogData["versions"][0] = {
       id: `v1-${Date.now()}`,
       version: "v1.0.0",
-      date: new Date().toISOString().split("T")[0],
+      date: new Date().toISOString().split("T")[0] || "",
       entries,
     };
 
@@ -273,7 +277,16 @@ export class ChangelogService {
     for (const version of data.versions) {
       md += `## ${version.date} - ${version.version}\n\n`;
 
-      const grouped = this.groupByType(version.entries);
+      const entries = version.entries.map((e) => ({
+        id: e.id || "",
+        type: e.type,
+        title: e.title || "",
+        description: e.description,
+        commitHash: e.commitHash || "",
+        author: e.author || "",
+        date: e.date,
+      }));
+      const grouped = this.groupByType(entries);
 
       const typeOrder: ChangeType[] = [
         "breaking",
@@ -348,7 +361,16 @@ export class ChangelogService {
     for (const version of data.versions) {
       html += `\n  <h2>${version.version} - ${version.date}</h2>`;
 
-      const grouped = this.groupByType(version.entries);
+      const entries = version.entries.map((e) => ({
+        id: e.id || "",
+        type: e.type,
+        title: e.title || "",
+        description: e.description,
+        commitHash: e.commitHash || "",
+        author: e.author || "",
+        date: e.date,
+      }));
+      const grouped = this.groupByType(entries);
       const typeOrder: ChangeType[] = [
         "breaking",
         "feature",

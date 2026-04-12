@@ -4,13 +4,19 @@ import axios, { AxiosInstance } from "axios";
 
 export interface GithubCommit {
   sha: string;
-  message: string;
-  author: {
-    name: string;
-    email: string;
-    date: string;
-  } | null;
+  commit: {
+    message: string;
+    author: {
+      name: string;
+      email: string;
+      date: string;
+    };
+  };
   html_url: string;
+  author: {
+    login: string;
+    avatar_url: string;
+  } | null;
 }
 
 export interface GithubRepo {

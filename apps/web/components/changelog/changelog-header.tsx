@@ -15,6 +15,11 @@ interface ChangelogHeaderProps {
   name: string;
   lastUpdated: string;
   showEditButton?: boolean;
+  stats?: {
+    versions: number;
+    changes: number;
+    contributors: number;
+  };
 }
 
 export function ChangelogHeader({
@@ -23,6 +28,7 @@ export function ChangelogHeader({
   name,
   lastUpdated,
   showEditButton = true,
+  stats,
 }: ChangelogHeaderProps) {
   const formattedDate = new Date(lastUpdated).toLocaleDateString("en-US", {
     year: "numeric",
@@ -117,17 +123,23 @@ export function ChangelogHeader({
         {/* Quick stats */}
         <div className="flex items-center gap-6 mt-8 pt-6 border-t border-border/40">
           <div className="text-center">
-            <p className="text-2xl font-semibold text-foreground">3</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {stats?.versions || "-"}
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5">Versions</p>
           </div>
           <div className="h-8 w-px bg-border/60" />
           <div className="text-center">
-            <p className="text-2xl font-semibold text-foreground">12</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {stats?.changes || "-"}
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5">Changes</p>
           </div>
           <div className="h-8 w-px bg-border/60" />
           <div className="text-center">
-            <p className="text-2xl font-semibold text-foreground">5</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {stats?.contributors || "-"}
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5">Contributors</p>
           </div>
         </div>

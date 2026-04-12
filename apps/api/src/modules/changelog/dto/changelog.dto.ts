@@ -1,101 +1,47 @@
-import {
-  IsString,
-  IsOptional,
-  IsEnum,
-  IsNumber,
-  IsArray,
-  ValidateNested,
-  IsUUID,
-  IsBoolean,
-  IsDateString,
-} from "class-validator";
-import { Type } from "class-transformer";
-import { ChangeType } from "../ai/ai.service";
+export type ChangeType =
+  | "feature"
+  | "fix"
+  | "improvement"
+  | "breaking"
+  | "docs"
+  | "chore";
 
-export class CreateChangelogDto {
-  @IsString()
-  owner!: string;
-
-  @IsString()
-  repo!: string;
-
-  @IsOptional()
-  @IsString()
+export interface CreateChangelogDto {
+  owner: string;
+  repo: string;
   token?: string;
-
-  @IsOptional()
-  @IsNumber()
-  limit?: number = 100;
+  limit?: number;
 }
 
-export class UpdateChangelogDto {
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => ChangelogDataDto)
+export interface UpdateChangelogDto {
   data?: ChangelogDataDto;
-
-  @IsOptional()
-  @IsString()
   token?: string;
 }
 
-export class ChangeEntryDto {
-  @IsOptional()
-  @IsString()
+export interface ChangeEntryDto {
   id?: string;
-
-  @IsEnum(["feature", "fix", "improvement", "breaking", "docs", "chore"])
-  type!: ChangeType;
-
-  @IsString()
-  title!: string;
-
-  @IsOptional()
-  @IsString()
+  type: ChangeType;
+  title: string;
   description?: string;
-
-  @IsString()
-  commitHash!: string;
-
-  @IsString()
-  author!: string;
-
-  @IsDateString()
-  date!: string;
+  commitHash: string;
+  author: string;
+  date: string;
 }
 
-export class VersionDto {
-  @IsOptional()
-  @IsString()
+export interface VersionDto {
   id?: string;
-
-  @IsString()
-  version!: string;
-
-  @IsString()
-  date!: string;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ChangeEntryDto)
-  entries!: ChangeEntryDto[];
+  version: string;
+  date: string;
+  entries: ChangeEntryDto[];
 }
 
-export class ChangelogDataDto {
-  @IsString()
-  name!: string;
-
-  @IsOptional()
-  @IsString()
+export interface ChangelogDataDto {
+  name: string;
   logoUrl?: string;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => VersionDto)
-  versions!: VersionDto[];
+  versions: VersionDto[];
 }
 
-export class GenerateChangelogResponse {
+export interface GenerateChangelogResponse {
   owner: string;
   repo: string;
   data: ChangelogDataDto;

@@ -12,7 +12,11 @@ import {
   HttpStatus,
 } from "@nestjs/common";
 import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
-import { ChangelogService } from "./changelog.service";
+import {
+  ChangelogService,
+  ChangelogData,
+  ChangelogStats,
+} from "./changelog.service";
 import { CreateChangelogDto, UpdateChangelogDto } from "./dto/changelog.dto";
 import {
   ApiTags,
