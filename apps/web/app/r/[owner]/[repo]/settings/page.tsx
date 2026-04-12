@@ -2,8 +2,10 @@
 
 import { useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Key,
@@ -17,6 +19,7 @@ import {
   Copy,
   AlertCircle,
   Trash2,
+  Loader2,
 } from "lucide-react";
 
 interface PageProps {
@@ -26,8 +29,11 @@ interface PageProps {
   }>;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+
 export default function SettingsPage({ params }: PageProps) {
   const { owner, repo } = use(params);
+  const router = useRouter();
 
   const [token, setToken] = useState("");
   const [showToken, setShowToken] = useState(false);
@@ -36,45 +42,125 @@ export default function SettingsPage({ params }: PageProps) {
 
   const [customDomain, setCustomDomain] = useState("");
   const [savedDomain, setSavedDomain] = useState("");
+  const [cnameTarget, setCnameTarget] = useState("");
   const [isSavingDomain, setIsSavingDomain] = useState(false);
   const [domainVerified, setDomainVerified] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const handleSaveToken = async () => {
     if (!token.trim()) return;
     setIsSavingToken(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setHasToken(true);
-    setToken("");
-    setIsSavingToken(false);
+
+    try {
+      const response = await fetch(`${API_URL}/settings/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save token");
+      }
+
+      setHasToken(true);
+      setToken("");
+      toast.success("Token saved securely");
+    } catch (error) {
+      toast.error("Failed to save token");
+    } finally {
+      setIsSavingToken(false);
+    }
   };
 
   const handleRemoveToken = async () => {
     setIsSavingToken(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setHasToken(false);
-    setIsSavingToken(false);
+
+    try {
+      const response = await fetch(`${API_URL}/settings/token`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to remove token");
+      }
+
+      setHasToken(false);
+      toast.success("Token removed");
+    } catch (error) {
+      toast.error("Failed to remove token");
+    } finally {
+      setIsSavingToken(false);
+    }
   };
 
   const handleSaveDomain = async () => {
     if (!customDomain.trim()) return;
     setIsSavingDomain(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSavedDomain(customDomain);
-    setDomainVerified(false);
-    setIsSavingDomain(false);
+
+    try {
+      const response = await fetch(`${API_URL}/settings/domain`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ domain: customDomain }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save domain");
+      }
+
+      const data = await response.json();
+      setSavedDomain(customDomain);
+      setCnameTarget(data.cnameTarget);
+      setDomainVerified(false);
+      toast.success("Domain configured");
+    } catch (error) {
+      toast.error("Failed to save domain");
+    } finally {
+      setIsSavingDomain(false);
+    }
   };
 
   const handleVerifyDomain = async () => {
-    setIsSavingDomain(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setDomainVerified(true);
-    setIsSavingDomain(false);
+    if (!savedDomain) return;
+    setIsVerifying(true);
+
+    try {
+      const response = await fetch(`${API_URL}/settings/domain/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ domain: savedDomain }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to verify domain");
+      }
+
+      const data = await response.json();
+      setDomainVerified(data.verified);
+
+      if (data.verified) {
+        toast.success("Domain verified successfully");
+      } else {
+        toast.error("DNS verification failed. Please check your CNAME record.");
+      }
+    } catch (error) {
+      toast.error("Failed to verify domain");
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleRemoveDomain = () => {
     setSavedDomain("");
     setCustomDomain("");
+    setCnameTarget("");
     setDomainVerified(false);
   };
 
@@ -167,7 +253,11 @@ export default function SettingsPage({ params }: PageProps) {
                     disabled={isSavingToken}
                     className="text-muted-foreground hover:text-destructive"
                   >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    {isSavingToken ? (
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-1.5" />
+                    )}
                     Remove
                   </Button>
                 </div>
@@ -207,7 +297,7 @@ export default function SettingsPage({ params }: PageProps) {
                   >
                     {isSavingToken ? (
                       <>
-                        <span className="h-4 w-4 border-2 border-background/30 border-t-background rounded-full animate-spin mr-1.5" />
+                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
                         Saving...
                       </>
                     ) : (
@@ -252,7 +342,9 @@ export default function SettingsPage({ params }: PageProps) {
                   <div className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`h-10 w-10 rounded-lg flex items-center justify-center ${domainVerified ? "bg-emerald-50" : "bg-amber-50"}`}
+                        className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                          domainVerified ? "bg-emerald-50" : "bg-amber-50"
+                        }`}
                       >
                         {domainVerified ? (
                           <Check className="h-5 w-5 text-emerald-600" />
@@ -292,12 +384,12 @@ export default function SettingsPage({ params }: PageProps) {
                           variant="outline"
                           size="sm"
                           onClick={handleVerifyDomain}
-                          disabled={isSavingDomain}
+                          disabled={isVerifying}
                           className="border-border/80"
                         >
-                          {isSavingDomain ? (
+                          {isVerifying ? (
                             <>
-                              <span className="h-3.5 w-3.5 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin mr-1.5" />
+                              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                               Verifying...
                             </>
                           ) : (
@@ -337,13 +429,17 @@ export default function SettingsPage({ params }: PageProps) {
                             <span>Host: {savedDomain.split(".")[0]}</span>
                           </div>
                           <code className="text-sm font-mono text-amber-900">
-                            changelog.logly.app
+                            {cnameTarget || "changelog.logly.app"}
                           </code>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => copyToClipboard("changelog.logly.app")}
+                          onClick={() =>
+                            copyToClipboard(
+                              cnameTarget || "changelog.logly.app",
+                            )
+                          }
                           className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"
                         >
                           {copied ? (
@@ -372,7 +468,7 @@ export default function SettingsPage({ params }: PageProps) {
                 >
                   {isSavingDomain ? (
                     <>
-                      <span className="h-4 w-4 border-2 border-background/30 border-t-background rounded-full animate-spin mr-1.5" />
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
                       Adding...
                     </>
                   ) : (

@@ -7,6 +7,7 @@ import { GithubModule } from "./modules/github/github.module";
 import { AiModule } from "./modules/ai/ai.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { ExportModule } from "./modules/export/export.module";
+import { CustomDomainsModule } from "./modules/custom-domains/custom-domains.module";
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ExportModule } from "./modules/export/export.module";
     AiModule,
     SettingsModule,
     ExportModule,
+    CustomDomainsModule,
   ],
 })
 export class AppModule {}

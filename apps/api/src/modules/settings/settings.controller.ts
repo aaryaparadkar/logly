@@ -1,13 +1,14 @@
 import {
   Controller,
+  Get,
   Post,
   Delete,
-  Get,
   Body,
   Param,
   Headers,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from "@nestjs/common";
 import { SettingsService } from "./settings.service";
 import {
@@ -68,8 +69,15 @@ export class SettingsController {
   @ApiOperation({ summary: "Configure custom domain" })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: "Domain configuration returned" })
-  async configureDomain(@Body() dto: DomainDto) {
-    return this.settingsService.getCustomDomainConfig(dto.domain);
+  async configureDomain(
+    @Body() dto: DomainDto,
+    @Headers("x-owner") owner?: string,
+    @Headers("x-repo") repo?: string,
+  ) {
+    if (!owner || !repo) {
+      throw new NotFoundException("Owner and repo are required");
+    }
+    return this.settingsService.configureCustomDomain(dto.domain, owner, repo);
   }
 
   @Post("domain/verify")
@@ -77,7 +85,7 @@ export class SettingsController {
   @ApiOperation({ summary: "Verify custom domain DNS configuration" })
   @ApiBearerAuth()
   async verifyDomain(@Body() dto: DomainDto) {
-    return this.settingsService.verifyCustomDomain(dto.domain, "changelog-id");
+    return this.settingsService.verifyCustomDomain(dto.domain);
   }
 
   @Get("base-url")
