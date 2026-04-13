@@ -1,7 +1,6 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
-import { ConfigService } from "@nestjs/config";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -9,8 +8,7 @@ async function bootstrap() {
     cors: true,
   });
 
-  const configService = app.get(ConfigService);
-  const port = configService.get("PORT") || 3000;
+  const port = process.env.PORT || 3001;
 
   app.useGlobalPipes(
     new ValidationPipe({

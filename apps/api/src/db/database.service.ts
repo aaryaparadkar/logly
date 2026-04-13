@@ -6,10 +6,10 @@ import { Pool } from "pg";
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: Pool | null = null;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService?: ConfigService) {}
 
   onModuleInit() {
-    const databaseUrl = this.configService.get<string>("DATABASE_URL");
+    const databaseUrl = process.env.DATABASE_URL;
 
     if (!databaseUrl) {
       console.warn("DATABASE_URL not set - database will not be available");

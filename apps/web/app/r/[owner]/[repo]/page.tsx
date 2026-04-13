@@ -23,7 +23,7 @@ export default async function ChangelogPage({ params }: PageProps) {
       owner: data.owner,
       repo: data.repo,
       name: data.data.name,
-      lastUpdated: new Date().toISOString(),
+      lastUpdated: data.lastUpdated || new Date().toISOString(),
       versions: data.data.versions.map((v: any) => ({
         id: v.id,
         version: v.version,

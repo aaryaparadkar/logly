@@ -29,10 +29,9 @@ export class SettingsService {
 
   constructor(
     private cryptoService: CryptoService,
-    private configService: ConfigService,
+    private configService?: ConfigService,
   ) {
-    this.baseUrl =
-      this.configService.get<string>("LOGLY_BASE_URL") || "logly.app";
+    this.baseUrl = process.env.LOGLY_BASE_URL || "logly.app";
   }
 
   async saveToken(

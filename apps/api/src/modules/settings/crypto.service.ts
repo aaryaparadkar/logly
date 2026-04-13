@@ -16,10 +16,9 @@ export class CryptoService {
   private readonly tagLength = 16;
   private readonly secret: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(private configService?: ConfigService) {
     this.secret =
-      this.configService.get<string>("ENCRYPTION_SECRET") ||
-      "default-secret-change-in-production";
+      process.env.ENCRYPTION_SECRET || "default-secret-change-in-production";
   }
 
   private deriveKey(salt: Buffer): Buffer {

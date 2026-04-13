@@ -112,10 +112,15 @@ export function ChangelogHeader({
                 Updated {relativeTime}
               </span>
               <span className="text-border hidden sm:inline">·</span>
-              <button className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <a
+                href={`https://github.com/${owner}/${repo}/commits/main.atom`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
                 <Rss className="h-3 w-3" />
                 Subscribe
-              </button>
+              </a>
             </div>
           </div>
         </div>

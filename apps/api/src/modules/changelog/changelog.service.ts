@@ -46,7 +46,6 @@ export class ChangelogService {
   constructor(
     private githubService: GithubService,
     private aiService: AiService,
-    private configService: ConfigService,
   ) {}
 
   async generateChangelog(dto: CreateChangelogDto) {
@@ -90,12 +89,19 @@ export class ChangelogService {
       repo,
       data,
       stats,
+      lastUpdated: repoInfo.pushed_at,
     };
   }
 
   private fallbackCategorize(commits: GithubCommit[]): CategorizedCommit[] {
     return commits.map((commit) => {
       const msg = (commit.commit?.message || "").toLowerCase();
+      const fullMsg = commit.commit?.message || "";
+      const msgLines = fullMsg.split("\n");
+      const firstLine = msgLines[0] || "";
+      const bodyLines = msgLines.slice(1).filter((l) => l.trim());
+      const body = bodyLines.join(" ").trim();
+
       let type: ChangeType = "chore";
 
       if (
@@ -122,11 +128,8 @@ export class ChangelogService {
 
       return {
         type,
-        title: ((commit.commit?.message || "").split("\n")[0] || "").slice(
-          0,
-          80,
-        ),
-        description: (commit.commit?.message || "").split("\n")[0] || "",
+        title: firstLine.slice(0, 80),
+        description: body || firstLine,
         commit,
       };
     });

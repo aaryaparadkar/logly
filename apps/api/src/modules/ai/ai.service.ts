@@ -33,10 +33,14 @@ export class AiService {
   private readonly apiKey: string;
   private readonly model: string;
 
-  constructor(private configService: ConfigService) {
-    this.apiKey = this.configService.get<string>("MISTRAL_API_KEY") || "";
-    this.model =
-      this.configService.get<string>("AI_MODEL") || "mistral-small-latest";
+  constructor(private configService?: ConfigService) {
+    console.log("AiService: Initializing");
+    console.log(
+      "AiService: MISTRAL_API_KEY present:",
+      !!process.env.MISTRAL_API_KEY,
+    );
+    this.apiKey = process.env.MISTRAL_API_KEY || "";
+    this.model = process.env.AI_MODEL || "mistral-small-latest";
   }
 
   private generatePrompt(commits: GithubCommit[]): string {
@@ -58,13 +62,14 @@ Categories:
 - chore: Maintenance, refactoring, tooling
 
 For each commit, respond with EXACTLY ONE LINE in this format:
-TYPE: sha - title (first 80 chars)
+TYPE: sha - title | description
 
 Rules:
 1. Be concise - titles under 80 characters
 2. Start with the category in uppercase (FEATURE, FIX, IMPROVEMENT, BREAKING, DOCS, CHORE)
-3. Focus on "what changed" not "how"
-4. Ignore merge commits and dependency updates
+3. Include a brief description after | that explains what changed in 1-2 sentences
+4. Focus on "what changed" not "how"
+5. Ignore merge commits and dependency updates
 
 Commits:
 ${commitList}`;
@@ -123,7 +128,17 @@ ${commitList}`;
       if (match && match[1] && match[2] && match[3]) {
         const typeStr = match[1];
         const shortSha = match[2];
-        const title = match[3];
+        let rest = match[3];
+
+        let title = rest;
+        let description = "";
+
+        if (rest.includes("|")) {
+          const parts = rest.split("|");
+          title = parts[0]?.trim() || rest;
+          description = parts.slice(1).join("|").trim() || "";
+        }
+
         const type = this.mapType(typeStr.toLowerCase());
         const commit = commitMap.get(shortSha) || commits[0];
 
@@ -131,7 +146,14 @@ ${commitList}`;
           results.push({
             type,
             title: title.trim().slice(0, 80),
-            description: (commit.commit?.message || "").split("\n")[0] || "",
+            description:
+              description ||
+              (commit.commit?.message || "")
+                .split("\n")
+                .slice(1)
+                .join(" ")
+                .trim() ||
+              title,
             commit,
           });
         }

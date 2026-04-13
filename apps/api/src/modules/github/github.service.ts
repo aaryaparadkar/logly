@@ -46,8 +46,10 @@ export interface GithubRepoPermissions {
 export class GithubService {
   private readonly client: AxiosInstance;
   private readonly baseUrl = "https://api.github.com";
+  private readonly appToken?: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(private configService?: ConfigService) {
+    this.appToken = process.env.GITHUB_TOKEN;
     this.client = axios.create({
       baseURL: this.baseUrl,
       headers: {
@@ -62,11 +64,8 @@ export class GithubService {
     };
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
-    } else {
-      const appToken = this.configService.get<string>("GITHUB_TOKEN");
-      if (appToken) {
-        headers["Authorization"] = `Bearer ${appToken}`;
-      }
+    } else if (this.appToken) {
+      headers["Authorization"] = `Bearer ${this.appToken}`;
     }
     return headers;
   }

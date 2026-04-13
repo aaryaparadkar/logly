@@ -31,20 +31,20 @@ export function ChangeEntry({ entry }: ChangeEntryProps) {
           <h4 className="text-[15px] font-medium text-foreground leading-snug">
             {entry.title}
           </h4>
-          {entry.description && (
+          {entry.description && entry.description !== entry.title && (
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
               {entry.description}
             </p>
           )}
           <div className="flex items-center gap-4 mt-3">
             <a
-              href={`https://github.com/owner/repo/commit/${entry.commitHash}`}
+              href={`https://github.com/${entry.commitHash.replace(/^(.{7}).*/, "$1")}/commit/${entry.commitHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group/link"
             >
               <GitCommit className="h-3 w-3" />
-              <code className="font-mono">{entry.commitHash}</code>
+              <code className="font-mono">{entry.commitHash.slice(0, 7)}</code>
               <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/link:opacity-100 transition-opacity" />
             </a>
             <span className="text-xs text-muted-foreground">
