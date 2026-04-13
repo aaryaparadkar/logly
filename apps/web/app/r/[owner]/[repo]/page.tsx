@@ -24,6 +24,7 @@ export default async function ChangelogPage({ params }: PageProps) {
       repo: data.repo,
       name: data.data.name,
       lastUpdated: data.lastUpdated || new Date().toISOString(),
+      defaultBranch: data.defaultBranch || "main",
       versions: data.data.versions.map((v: any) => ({
         id: v.id,
         version: v.version,
@@ -60,6 +61,7 @@ export default async function ChangelogPage({ params }: PageProps) {
         lastUpdated={changelog.lastUpdated}
         error={error}
         stats={data?.stats}
+        defaultBranch={changelog.defaultBranch}
       />
 
       <main className="mx-auto max-w-3xl px-6 py-10">

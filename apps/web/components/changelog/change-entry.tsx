@@ -16,10 +16,10 @@ export function ChangeEntry({ entry }: ChangeEntryProps) {
     <div className="group py-5 first:pt-0 last:pb-0">
       <div className="flex items-start gap-4">
         {/* Type indicator line */}
-        <div className="flex flex-col items-center gap-2 pt-1">
+        <div className="flex flex-col items-center gap-2 pt-1 w-20 shrink-0">
           <span
             className={cn(
-              "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border shrink-0",
+              "inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border w-full",
               config.className,
             )}
           >

@@ -76,9 +76,10 @@ export class ChangelogController {
     @Param("owner") owner: string,
     @Param("repo") repo: string,
     @Body() dto: UpdateChangelogDto,
-    @Query() query: TokenQueryDto,
+    @Headers("x-github-token") headerToken?: string,
+    @Query() query?: TokenQueryDto,
   ) {
-    const token = dto.token || query.token;
+    const token = dto.token || headerToken || query?.token;
     return this.changelogService.updateChangelog(owner, repo, dto.data!, token);
   }
 

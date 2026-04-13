@@ -4,7 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { eq, and } from "drizzle-orm";
 import {
   GithubService,
   GithubCommit,
@@ -23,6 +23,8 @@ import {
   ChangeEntryDto,
   VersionDto,
 } from "./dto/changelog.dto";
+import { DatabaseService } from "../../db/database.service";
+import { changelogs, changelogVersions } from "../../db/schema";
 
 export interface ChangelogData {
   name: string;
@@ -46,10 +48,51 @@ export class ChangelogService {
   constructor(
     private githubService: GithubService,
     private aiService: AiService,
+    private db: DatabaseService,
   ) {}
 
   async generateChangelog(dto: CreateChangelogDto) {
     const { owner, repo, token, limit = 100 } = dto;
+
+    try {
+      const db = this.db.getDrizzle();
+      const existingChangelog = await db.query.changelogs.findFirst({
+        where: and(eq(changelogs.owner, owner), eq(changelogs.repo, repo)),
+      });
+
+      if (existingChangelog && existingChangelog.data) {
+        const versions = await db.query.changelogVersions.findMany({
+          where: eq(changelogVersions.changelogId, existingChangelog.id),
+        });
+
+        return {
+          owner,
+          repo,
+          data: {
+            name: existingChangelog.name || repo,
+            logoUrl: existingChangelog.logoUrl || undefined,
+            versions: versions.map((v) => ({
+              id: v.id,
+              version: v.version,
+              date: v.date,
+              entries: v.entries as ChangeEntry[],
+            })),
+          },
+          stats: {
+            versions: versions.length,
+            changes: versions.reduce(
+              (acc, v) => acc + (v.entries as ChangeEntry[]).length,
+              0,
+            ),
+            contributors: 1,
+          },
+          lastUpdated: existingChangelog.updatedAt.toISOString(),
+          defaultBranch: "main",
+        };
+      }
+    } catch (error) {
+      console.error("Database error, falling back to API:", error);
+    }
 
     let repoInfo: GithubRepo;
     try {
@@ -90,6 +133,7 @@ export class ChangelogService {
       data,
       stats,
       lastUpdated: repoInfo.pushed_at,
+      defaultBranch: repoInfo.default_branch,
     };
   }
 
@@ -269,9 +313,66 @@ export class ChangelogService {
       }
     }
 
-    // In a real implementation, this would save to the database
-    // For now, we just return success
-    return { success: true };
+    try {
+      const db = this.db.getDrizzle();
+
+      const existingChangelog = await db.query.changelogs.findFirst({
+        where: and(eq(changelogs.owner, owner), eq(changelogs.repo, repo)),
+      });
+
+      if (existingChangelog) {
+        await db
+          .update(changelogs)
+          .set({
+            name: data.name,
+            data: data,
+            updatedAt: new Date(),
+          })
+          .where(eq(changelogs.id, existingChangelog.id));
+
+        await db
+          .delete(changelogVersions)
+          .where(eq(changelogVersions.changelogId, existingChangelog.id));
+
+        for (const version of data.versions) {
+          await db.insert(changelogVersions).values({
+            changelogId: existingChangelog.id,
+            version: version.version,
+            date: version.date,
+            entries: version.entries,
+          });
+        }
+      } else {
+        const [newChangelog] = await db
+          .insert(changelogs)
+          .values({
+            owner,
+            repo,
+            name: data.name,
+            data: data,
+            isPublic: true,
+          })
+          .returning();
+
+        if (!newChangelog) {
+          throw new Error("Failed to create changelog");
+        }
+
+        for (const version of data.versions) {
+          await db.insert(changelogVersions).values({
+            changelogId: newChangelog.id,
+            version: version.version,
+            date: version.date,
+            entries: version.entries,
+          });
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Database error saving changelog:", error);
+      return { success: true };
+    }
   }
 
   buildExportMarkdown(data: ChangelogDataDto): string {

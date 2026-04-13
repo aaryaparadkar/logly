@@ -29,7 +29,7 @@ interface PageProps {
   }>;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 export default function SettingsPage({ params }: PageProps) {
   const { owner, repo } = use(params);

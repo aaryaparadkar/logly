@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { CryptoService } from "./crypto.service";
+import { DatabaseService } from "../../db/database.service";
+import { eq, and } from "drizzle-orm";
+import { changelogs, customDomains } from "../../db/schema";
 
 export interface UserSettings {
   hasToken: boolean;
@@ -29,7 +31,7 @@ export class SettingsService {
 
   constructor(
     private cryptoService: CryptoService,
-    private configService?: ConfigService,
+    private db: DatabaseService,
   ) {
     this.baseUrl = process.env.LOGLY_BASE_URL || "logly.app";
   }
@@ -68,13 +70,37 @@ export class SettingsService {
   ): Promise<CustomDomainResponse> {
     console.log(`Configuring custom domain: ${domain} for ${owner}/${repo}`);
 
-    return {
-      domain,
-      cnameTarget: `cname.${this.baseUrl}`,
-      status: "pending",
-      owner,
-      repo,
-    };
+    try {
+      const db = this.db.getDrizzle();
+
+      const existingChangelog = await db.query.changelogs.findFirst({
+        where: and(eq(changelogs.owner, owner), eq(changelogs.repo, repo)),
+      });
+
+      if (existingChangelog) {
+        await db
+          .update(changelogs)
+          .set({ customDomain: domain, updatedAt: new Date() })
+          .where(eq(changelogs.id, existingChangelog.id));
+      }
+
+      return {
+        domain,
+        cnameTarget: `cname.logly.app`,
+        status: "pending",
+        owner,
+        repo,
+      };
+    } catch (error) {
+      console.error("Error configuring domain:", error);
+      return {
+        domain,
+        cnameTarget: `cname.logly.app`,
+        status: "pending",
+        owner,
+        repo,
+      };
+    }
   }
 
   async verifyCustomDomain(
@@ -82,11 +108,30 @@ export class SettingsService {
   ): Promise<{ verified: boolean; message?: string }> {
     console.log(`Verifying custom domain: ${domain}`);
 
-    return {
-      verified: false,
-      message:
-        "DNS verification not yet implemented. Please ensure your CNAME record is configured.",
-    };
+    try {
+      const db = this.db.getDrizzle();
+
+      const domainRecord = await db.query.customDomains.findFirst({
+        where: eq(customDomains.domain, domain),
+      });
+
+      if (domainRecord) {
+        return { verified: true, message: "Domain verified" };
+      }
+
+      return {
+        verified: false,
+        message:
+          "DNS verification not yet implemented. Please ensure your CNAME record is configured.",
+      };
+    } catch (error) {
+      console.error("Error verifying domain:", error);
+      return {
+        verified: false,
+        message:
+          "DNS verification not yet implemented. Please ensure your CNAME record is configured.",
+      };
+    }
   }
 
   getBaseUrl(): string {

@@ -20,6 +20,7 @@ interface ChangelogHeaderProps {
     changes: number;
     contributors: number;
   };
+  defaultBranch?: string;
 }
 
 export function ChangelogHeader({
@@ -29,6 +30,7 @@ export function ChangelogHeader({
   lastUpdated,
   showEditButton = true,
   stats,
+  defaultBranch = "main",
 }: ChangelogHeaderProps) {
   const formattedDate = new Date(lastUpdated).toLocaleDateString("en-US", {
     year: "numeric",
@@ -113,7 +115,7 @@ export function ChangelogHeader({
               </span>
               <span className="text-border hidden sm:inline">·</span>
               <a
-                href={`https://github.com/${owner}/${repo}/commits/main.atom`}
+                href={`https://github.com/${owner}/${repo}/commits/${defaultBranch}.atom`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"

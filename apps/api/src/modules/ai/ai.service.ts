@@ -82,6 +82,29 @@ ${commitList}`;
       throw new Error("MISTRAL_API_KEY not configured");
     }
 
+    const batchSize = 25;
+    const results: CategorizedCommit[] = [];
+
+    for (let i = 0; i < commits.length; i += batchSize) {
+      const batch = commits.slice(i, i + batchSize);
+      try {
+        const categorized = await this.categorizeBatch(batch);
+        results.push(...categorized);
+      } catch (error) {
+        console.error(
+          `Failed to categorize batch ${i / batchSize + 1}:`,
+          error,
+        );
+        results.push(...this.fallbackCategorize(batch));
+      }
+    }
+
+    return results;
+  }
+
+  private async categorizeBatch(
+    commits: GithubCommit[],
+  ): Promise<CategorizedCommit[]> {
     const prompt = this.generatePrompt(commits);
 
     try {
@@ -213,6 +236,43 @@ ${commitList}`;
       chore: "chore",
     };
     return map[type] || "chore";
+  }
+
+  private fallbackCategorize(commits: GithubCommit[]): CategorizedCommit[] {
+    return commits.map((commit) => {
+      const msg = (commit.commit?.message || "").toLowerCase();
+      const fullMsg = commit.commit?.message || "";
+      const msgLines = fullMsg.split("\n");
+      const firstLine = msgLines[0] || "";
+      const bodyLines = msgLines.slice(1).filter((l) => l.trim());
+      const body = bodyLines.join(" ").trim();
+
+      let type: ChangeType = "chore";
+
+      if (
+        msg.includes("feat") ||
+        msg.includes("feature") ||
+        msg.includes("add")
+      )
+        type = "feature";
+      else if (msg.includes("fix") || msg.includes("bug")) type = "fix";
+      else if (
+        msg.includes("improve") ||
+        msg.includes("enhance") ||
+        msg.includes("optimize")
+      )
+        type = "improvement";
+      else if (msg.includes("break") || msg.includes("migration"))
+        type = "breaking";
+      else if (msg.includes("doc") || msg.includes("readme")) type = "docs";
+
+      return {
+        type,
+        title: firstLine.slice(0, 80),
+        description: body || firstLine,
+        commit,
+      };
+    });
   }
 
   async regenerateEntry(

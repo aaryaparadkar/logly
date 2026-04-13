@@ -57,22 +57,22 @@ export async function updateChangelog(
   data: any,
   token?: string,
 ) {
-  const params = new URLSearchParams();
-  if (token) params.set("token", token);
-
-  const response = await fetch(
-    `${API_URL}/changelogs/${owner}/${repo}?${params}`,
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ data }),
+  const response = await fetch(`${API_URL}/changelogs/${owner}/${repo}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "X-GitHub-Token": token } : {}),
     },
-  );
+    body: JSON.stringify({
+      data: { versions: data.versions, name: data.name },
+    }),
+  });
 
   if (!response.ok) {
-    throw new Error(`Failed to update changelog: ${response.statusText}`);
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      error.message || `Failed to update changelog: ${response.statusText}`,
+    );
   }
 
   return response.json();
