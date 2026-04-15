@@ -11,7 +11,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
       - ENCRYPTION_SECRET=${ENCRYPTION_SECRET}
-      - LOGLY_BASE_URL=${LOGLY_BASE_URL:-localhost:3000}
+      - LOGLY_BASE_URL=${LOGLY_BASE_URL:-logly.app}
     depends_on:
       db:
         condition: service_healthy

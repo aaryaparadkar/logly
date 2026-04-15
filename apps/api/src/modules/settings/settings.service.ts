@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { CryptoService } from "./crypto.service";
 import { DatabaseService } from "../../db/database.service";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { changelogs, customDomains } from "../../db/schema";
 
 export interface UserSettings {
@@ -25,6 +25,14 @@ export interface CustomDomainResponse {
   repo?: string;
 }
 
+export interface RepoCustomDomain {
+  domain: string;
+  cnameTarget: string;
+  status: "pending" | "verified";
+  verified: boolean;
+  createdAt: string;
+}
+
 @Injectable()
 export class SettingsService {
   private readonly baseUrl: string;
@@ -34,6 +42,26 @@ export class SettingsService {
     private db: DatabaseService,
   ) {
     this.baseUrl = process.env.LOGLY_BASE_URL || "logly.app";
+  }
+
+  private getBaseHost(): string {
+    const rawBaseUrl = this.baseUrl.trim();
+
+    if (!rawBaseUrl) {
+      return "logly.app";
+    }
+
+    try {
+      return new URL(rawBaseUrl).host;
+    } catch {
+      return (
+        rawBaseUrl.replace(/^https?:\/\//, "").split("/")[0] || "logly.app"
+      );
+    }
+  }
+
+  private getCnameTarget(): string {
+    return `cname.${this.getBaseHost()}`;
   }
 
   async saveToken(
@@ -58,7 +86,7 @@ export class SettingsService {
   getCustomDomainConfig(domain: string): CustomDomainResponse {
     return {
       domain,
-      cnameTarget: `cname.${this.baseUrl}`,
+      cnameTarget: this.getCnameTarget(),
       status: "pending",
     };
   }
@@ -82,11 +110,23 @@ export class SettingsService {
           .update(changelogs)
           .set({ customDomain: domain, updatedAt: new Date() })
           .where(eq(changelogs.id, existingChangelog.id));
+
+        const existingDomain = await db.query.customDomains.findFirst({
+          where: eq(customDomains.domain, domain),
+        });
+
+        if (!existingDomain) {
+          await db.insert(customDomains).values({
+            domain,
+            changelogId: existingChangelog.id,
+            verified: false,
+          });
+        }
       }
 
       return {
         domain,
-        cnameTarget: `cname.logly.app`,
+        cnameTarget: this.getCnameTarget(),
         status: "pending",
         owner,
         repo,
@@ -95,12 +135,73 @@ export class SettingsService {
       console.error("Error configuring domain:", error);
       return {
         domain,
-        cnameTarget: `cname.logly.app`,
+        cnameTarget: this.getCnameTarget(),
         status: "pending",
         owner,
         repo,
       };
     }
+  }
+
+  async listCustomDomains(
+    owner: string,
+    repo: string,
+  ): Promise<RepoCustomDomain[]> {
+    const db = this.db.getDrizzle();
+    const changelog = await db.query.changelogs.findFirst({
+      where: and(eq(changelogs.owner, owner), eq(changelogs.repo, repo)),
+    });
+
+    if (!changelog) {
+      return [];
+    }
+
+    const domains = await db.query.customDomains.findMany({
+      where: eq(customDomains.changelogId, changelog.id),
+      orderBy: [desc(customDomains.createdAt)],
+    });
+
+    return domains.map((domainRecord) => ({
+      domain: domainRecord.domain,
+      cnameTarget: this.getCnameTarget(),
+      status: domainRecord.verified ? "verified" : "pending",
+      verified: Boolean(domainRecord.verified),
+      createdAt: domainRecord.createdAt.toISOString(),
+    }));
+  }
+
+  async deleteCustomDomain(domain: string, owner: string, repo: string) {
+    const db = this.db.getDrizzle();
+    const changelog = await db.query.changelogs.findFirst({
+      where: and(eq(changelogs.owner, owner), eq(changelogs.repo, repo)),
+    });
+
+    if (!changelog) {
+      throw new NotFoundException(`Repository ${owner}/${repo} not found`);
+    }
+
+    await db
+      .delete(customDomains)
+      .where(
+        and(
+          eq(customDomains.domain, domain),
+          eq(customDomains.changelogId, changelog.id),
+        ),
+      );
+
+    const remainingDomains = await db.query.customDomains.findMany({
+      where: eq(customDomains.changelogId, changelog.id),
+      orderBy: [desc(customDomains.createdAt)],
+    });
+
+    const nextPrimaryDomain = remainingDomains[0]?.domain ?? null;
+
+    await db
+      .update(changelogs)
+      .set({ customDomain: nextPrimaryDomain, updatedAt: new Date() })
+      .where(eq(changelogs.id, changelog.id));
+
+    return { success: true };
   }
 
   async verifyCustomDomain(

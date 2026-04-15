@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -22,6 +21,14 @@ import {
   Loader2,
 } from "lucide-react";
 
+interface RepoDomain {
+  domain: string;
+  cnameTarget: string;
+  status: "pending" | "verified";
+  verified: boolean;
+  createdAt: string;
+}
+
 interface PageProps {
   params: Promise<{
     owner: string;
@@ -30,45 +37,87 @@ interface PageProps {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const DEFAULT_BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "logly.app";
 
 export default function SettingsPage({ params }: PageProps) {
   const { owner, repo } = use(params);
-  const router = useRouter();
 
   const [token, setToken] = useState("");
   const [showToken, setShowToken] = useState(false);
+  const [savedToken, setSavedToken] = useState("");
   const [hasToken, setHasToken] = useState(false);
   const [isSavingToken, setIsSavingToken] = useState(false);
 
   const [customDomain, setCustomDomain] = useState("");
-  const [savedDomain, setSavedDomain] = useState("");
-  const [cnameTarget, setCnameTarget] = useState("");
+  const [domains, setDomains] = useState<RepoDomain[]>([]);
   const [isSavingDomain, setIsSavingDomain] = useState(false);
-  const [domainVerified, setDomainVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [runtimeHostname, setRuntimeHostname] = useState("");
+
+  const tokenStorageKey = `github_token_${owner}/${repo}`;
+  const maskedToken = savedToken
+    ? `${savedToken.slice(0, 4)}_${"•".repeat(Math.max(savedToken.length - 8, 12))}${savedToken.slice(-4)}`
+    : "";
+  const primaryDomain = domains[0] || null;
+  const defaultCnameTarget = useMemo(() => {
+    const baseDomain =
+      runtimeHostname && !runtimeHostname.startsWith("localhost")
+        ? runtimeHostname
+        : DEFAULT_BASE_DOMAIN;
+
+    return `cname.${baseDomain}`;
+  }, [runtimeHostname]);
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem(tokenStorageKey) || "";
+    setSavedToken(storedToken);
+    setHasToken(Boolean(storedToken));
+  }, [tokenStorageKey]);
+
+  useEffect(() => {
+    setRuntimeHostname(window.location.hostname);
+  }, []);
+
+  useEffect(() => {
+    const loadDomains = async () => {
+      try {
+        const response = await fetch(`${API_URL}/settings/domains`, {
+          headers: {
+            "Content-Type": "application/json",
+            "X-Owner": owner,
+            "X-Repo": repo,
+          },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as RepoDomain[];
+        setDomains(data);
+      } catch {
+        // Ignore background loading failures here.
+      }
+    };
+
+    void loadDomains();
+  }, [owner, repo]);
 
   const handleSaveToken = async () => {
-    if (!token.trim()) return;
+    const trimmedToken = token.trim();
+    if (!trimmedToken) return;
+
     setIsSavingToken(true);
 
     try {
-      const response = await fetch(`${API_URL}/settings/token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ token }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to save token");
-      }
+      localStorage.setItem(tokenStorageKey, trimmedToken);
 
       setHasToken(true);
+      setSavedToken(trimmedToken);
       setToken("");
       toast.success("Token saved securely");
-    } catch (error) {
+    } catch {
       toast.error("Failed to save token");
     } finally {
       setIsSavingToken(false);
@@ -79,17 +128,13 @@ export default function SettingsPage({ params }: PageProps) {
     setIsSavingToken(true);
 
     try {
-      const response = await fetch(`${API_URL}/settings/token`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to remove token");
-      }
+      localStorage.removeItem(tokenStorageKey);
 
       setHasToken(false);
+      setSavedToken("");
+      setToken("");
       toast.success("Token removed");
-    } catch (error) {
+    } catch {
       toast.error("Failed to remove token");
     } finally {
       setIsSavingToken(false);
@@ -105,28 +150,45 @@ export default function SettingsPage({ params }: PageProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Owner": owner,
+          "X-Repo": repo,
         },
         body: JSON.stringify({ domain: customDomain }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save domain");
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || "Failed to save domain");
       }
 
       const data = await response.json();
-      setSavedDomain(customDomain);
-      setCnameTarget(data.cnameTarget);
-      setDomainVerified(false);
+      setDomains((current) => {
+        const nextDomain: RepoDomain = {
+          domain: data.domain,
+          cnameTarget: data.cnameTarget,
+          status: data.status,
+          verified: data.status === "verified",
+          createdAt: new Date().toISOString(),
+        };
+
+        return [
+          nextDomain,
+          ...current.filter((domain) => domain.domain !== nextDomain.domain),
+        ];
+      });
+      setCustomDomain("");
       toast.success("Domain configured");
     } catch (error) {
-      toast.error("Failed to save domain");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save domain",
+      );
     } finally {
       setIsSavingDomain(false);
     }
   };
 
   const handleVerifyDomain = async () => {
-    if (!savedDomain) return;
+    if (!primaryDomain) return;
     setIsVerifying(true);
 
     try {
@@ -135,7 +197,7 @@ export default function SettingsPage({ params }: PageProps) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ domain: savedDomain }),
+        body: JSON.stringify({ domain: primaryDomain.domain }),
       });
 
       if (!response.ok) {
@@ -143,25 +205,53 @@ export default function SettingsPage({ params }: PageProps) {
       }
 
       const data = await response.json();
-      setDomainVerified(data.verified);
+      setDomains((current) =>
+        current.map((domain, index) =>
+          index === 0
+            ? {
+                ...domain,
+                verified: data.verified,
+                status: data.verified ? "verified" : "pending",
+              }
+            : domain,
+        ),
+      );
 
       if (data.verified) {
         toast.success("Domain verified successfully");
       } else {
         toast.error("DNS verification failed. Please check your CNAME record.");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to verify domain");
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const handleRemoveDomain = () => {
-    setSavedDomain("");
-    setCustomDomain("");
-    setCnameTarget("");
-    setDomainVerified(false);
+  const handleRemoveDomain = async (domainToRemove: string) => {
+    try {
+      const response = await fetch(`${API_URL}/settings/domain`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Owner": owner,
+          "X-Repo": repo,
+        },
+        body: JSON.stringify({ domain: domainToRemove }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to remove domain");
+      }
+
+      setDomains((current) =>
+        current.filter((domain) => domain.domain !== domainToRemove),
+      );
+      toast.success("Domain removed");
+    } catch {
+      toast.error("Failed to remove domain");
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -242,7 +332,7 @@ export default function SettingsPage({ params }: PageProps) {
                         Token configured
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        ghp_••••••••••••••••••••
+                        {maskedToken}
                       </p>
                     </div>
                   </div>
@@ -336,80 +426,92 @@ export default function SettingsPage({ params }: PageProps) {
               </div>
             </div>
 
-            {savedDomain ? (
+            {domains.length > 0 ? (
               <div className="space-y-4">
-                <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
-                  <div className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                          domainVerified ? "bg-emerald-50" : "bg-amber-50"
-                        }`}
-                      >
-                        {domainVerified ? (
-                          <Check className="h-5 w-5 text-emerald-600" />
-                        ) : (
-                          <AlertCircle className="h-5 w-5 text-amber-600" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {savedDomain}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {domainVerified
-                            ? "Verified and active"
-                            : "Pending DNS verification"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {domainVerified ? (
-                        <a
-                          href={`https://${savedDomain}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-border/80"
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1.5" />
-                            Visit
-                          </Button>
-                        </a>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleVerifyDomain}
-                          disabled={isVerifying}
-                          className="border-border/80"
-                        >
-                          {isVerifying ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                              Verifying...
-                            </>
-                          ) : (
-                            "Verify DNS"
-                          )}
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleRemoveDomain}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                {domains.map((domain, index) => {
+                  const isPrimary = index === 0;
+                  const isVerified = domain.verified;
 
-                {!domainVerified && (
+                  return (
+                    <div
+                      key={domain.domain}
+                      className="rounded-xl border border-border/60 bg-card overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between p-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                              isVerified ? "bg-emerald-50" : "bg-amber-50"
+                            }`}
+                          >
+                            {isVerified ? (
+                              <Check className="h-5 w-5 text-emerald-600" />
+                            ) : (
+                              <AlertCircle className="h-5 w-5 text-amber-600" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              {domain.domain}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {isVerified
+                                ? "Verified and active"
+                                : "Pending DNS verification"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isVerified ? (
+                            <a
+                              href={`https://${domain.domain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-border/80"
+                              >
+                                <ExternalLink className="h-4 w-4 mr-1.5" />
+                                Visit
+                              </Button>
+                            </a>
+                          ) : isPrimary ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleVerifyDomain}
+                              disabled={isVerifying}
+                              className="border-border/80"
+                            >
+                              {isVerifying ? (
+                                <>
+                                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                  Verifying...
+                                </>
+                              ) : (
+                                "Verify DNS"
+                              )}
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              void handleRemoveDomain(domain.domain)
+                            }
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {primaryDomain && !primaryDomain.verified && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden">
                     <div className="px-4 py-3 border-b border-amber-200/60 bg-amber-50">
                       <p className="text-sm font-medium text-amber-800">
@@ -421,15 +523,21 @@ export default function SettingsPage({ params }: PageProps) {
                         Add the following CNAME record to your domain&apos;s DNS
                         settings:
                       </p>
+                      <p className="text-xs text-amber-700/90">
+                        Point your custom domain to Logly&apos;s dedicated
+                        routing host, not the main app domain.
+                      </p>
                       <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-200">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 text-xs text-amber-600">
                             <span className="font-medium">CNAME</span>
                             <span className="text-amber-400">|</span>
-                            <span>Host: {savedDomain.split(".")[0]}</span>
+                            <span>
+                              Host: {primaryDomain.domain.split(".")[0]}
+                            </span>
                           </div>
                           <code className="text-sm font-mono text-amber-900">
-                            {cnameTarget || "changelog.logly.app"}
+                            {primaryDomain.cnameTarget || defaultCnameTarget}
                           </code>
                         </div>
                         <Button
@@ -437,7 +545,7 @@ export default function SettingsPage({ params }: PageProps) {
                           size="sm"
                           onClick={() =>
                             copyToClipboard(
-                              cnameTarget || "changelog.logly.app",
+                              primaryDomain.cnameTarget || defaultCnameTarget,
                             )
                           }
                           className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"

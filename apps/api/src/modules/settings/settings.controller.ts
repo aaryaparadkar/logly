@@ -4,7 +4,6 @@ import {
   Post,
   Delete,
   Body,
-  Param,
   Headers,
   HttpCode,
   HttpStatus,
@@ -29,6 +28,11 @@ class DomainDto {
   @IsString()
   @IsNotEmpty()
   domain!: string;
+}
+
+class RepoHeadersDto {
+  owner!: string;
+  repo!: string;
 }
 
 @ApiTags("settings")
@@ -78,6 +82,34 @@ export class SettingsController {
       throw new NotFoundException("Owner and repo are required");
     }
     return this.settingsService.configureCustomDomain(dto.domain, owner, repo);
+  }
+
+  @Get("domains")
+  @ApiOperation({ summary: "List custom domains for a repo" })
+  async listDomains(
+    @Headers("x-owner") owner?: string,
+    @Headers("x-repo") repo?: string,
+  ) {
+    if (!owner || !repo) {
+      throw new NotFoundException("Owner and repo are required");
+    }
+
+    return this.settingsService.listCustomDomains(owner, repo);
+  }
+
+  @Delete("domain")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Delete custom domain" })
+  async deleteDomain(
+    @Body() dto: DomainDto,
+    @Headers("x-owner") owner?: string,
+    @Headers("x-repo") repo?: string,
+  ) {
+    if (!owner || !repo) {
+      throw new NotFoundException("Owner and repo are required");
+    }
+
+    return this.settingsService.deleteCustomDomain(dto.domain, owner, repo);
   }
 
   @Post("domain/verify")
