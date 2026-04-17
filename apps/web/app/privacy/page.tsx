@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FileText } from "lucide-react";
+import { Logo } from "@/components/logo";
 
 export const metadata: Metadata = {
   title: "Privacy - logly",
@@ -19,9 +20,7 @@ export default function PrivacyPage() {
               href="/"
               className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
             >
-              <div className="h-8 w-8 rounded-lg bg-foreground flex items-center justify-center shadow-sm">
-                <FileText className="h-4 w-4 text-background" />
-              </div>
+              <Logo className="h-8 w-8 rounded-lg shadow-sm" />
               <span className="font-semibold text-foreground tracking-tight">
                 logly
               </span>

@@ -15,6 +15,7 @@ import {
   ArrowUpRight,
   Star,
 } from "lucide-react";
+import { Logo } from "@/components/logo";
 
 export default function LandingPage() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -43,9 +44,7 @@ export default function LandingPage() {
       <header className="border-b border-border/60">
         <div className="mx-auto max-w-5xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-foreground flex items-center justify-center shadow-sm">
-              <FileText className="h-4 w-4 text-background" />
-            </div>
+            <Logo className="h-8 w-8 rounded-lg shadow-sm" />
             <span className="font-semibold text-foreground tracking-tight">
               logly
             </span>
@@ -393,9 +392,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-5xl px-6 py-8 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md bg-foreground flex items-center justify-center">
-                <FileText className="h-3 w-3 text-background" />
-              </div>
+              <Logo className="h-6 w-6 rounded-md" />
               <span className="text-sm font-medium text-foreground">logly</span>
             </div>
             <span className="text-sm text-muted-foreground">
