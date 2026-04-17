@@ -5,7 +5,14 @@ import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    cors: true,
+    cors: {
+      origin: [
+        "https://logly.aaryaparadkar.in",
+        "http://localhost:3000",
+        "http://localhost:3001",
+      ],
+      credentials: true,
+    },
   });
 
   const port = process.env.PORT || 3001;

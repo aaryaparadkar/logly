@@ -40,7 +40,7 @@ export default function DocsPage() {
               Privacy
             </a>
             <a
-              href="https://github.com"
+              href="https://github.com/aaryaparadkar/logly"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -375,7 +375,7 @@ export default function DocsPage() {
               Privacy
             </a>
             <a
-              href="https://github.com"
+              href="https://github.com/aaryaparadkar/logly"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors"
