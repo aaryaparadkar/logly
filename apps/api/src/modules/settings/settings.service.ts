@@ -151,10 +151,13 @@ export class SettingsService {
   }
 
   private getFallbackDnsRecords(domain: string): DnsRecordInstruction[] {
+    const parts = domain.split(".");
+    const name = parts[0] || domain;
+
     return [
       {
         type: "CNAME",
-        name: domain,
+        name,
         value: this.getCnameTarget(),
         reason: "Point this domain to Logly routing",
       },
