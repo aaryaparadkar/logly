@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+import { API_BASE_URL } from "@/lib/api-base-url";
 
 export async function fetchChangelog(
   owner: string,
@@ -8,7 +8,7 @@ export async function fetchChangelog(
   const params = new URLSearchParams();
   if (token) params.set("token", token);
 
-  const url = `${API_URL}/changelogs/${owner}/${repo}${params.toString() ? `?${params}` : ""}`;
+  const url = `${API_BASE_URL}/changelogs/${owner}/${repo}${params.toString() ? `?${params}` : ""}`;
 
   const response = await fetch(url, {
     method: "GET",
@@ -31,7 +31,7 @@ export async function generateChangelog(
   token?: string,
   limit?: number,
 ) {
-  const response = await fetch(`${API_URL}/changelogs`, {
+  const response = await fetch(`${API_BASE_URL}/changelogs`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -57,7 +57,7 @@ export async function updateChangelog(
   data: any,
   token?: string,
 ) {
-  const response = await fetch(`${API_URL}/changelogs/${owner}/${repo}`, {
+  const response = await fetch(`${API_BASE_URL}/changelogs/${owner}/${repo}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -88,7 +88,7 @@ export async function regenerateEntry(
   if (token) params.set("token", token);
 
   const response = await fetch(
-    `${API_URL}/changelogs/${owner}/${repo}/regenerate/${entryId}?${params}`,
+    `${API_BASE_URL}/changelogs/${owner}/${repo}/regenerate/${entryId}?${params}`,
     {
       method: "POST",
       headers: {
@@ -109,7 +109,7 @@ export async function exportChangelog(
   repo: string,
   format: "markdown" | "json" | "html",
 ) {
-  const response = await fetch(`${API_URL}/export/${owner}/${repo}/${format}`);
+  const response = await fetch(`${API_BASE_URL}/export/${owner}/${repo}/${format}`);
 
   if (!response.ok) {
     throw new Error(`Failed to export: ${response.statusText}`);

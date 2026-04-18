@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { API_BASE_URL } from "@/lib/api-base-url";
 
 export const config = {
   matcher: [
@@ -41,10 +42,8 @@ export async function middleware(request: NextRequest) {
 }
 
 async function getDomainMapping(domain: string) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-
   try {
-    const response = await fetch(`${apiUrl}/api/custom-domains/${domain}`, {
+    const response = await fetch(`${API_BASE_URL}/custom-domains/${domain}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

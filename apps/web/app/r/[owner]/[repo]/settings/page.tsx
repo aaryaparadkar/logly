@@ -20,6 +20,7 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api-base-url";
 
 interface RepoDomain {
   domain: string;
@@ -36,7 +37,6 @@ interface PageProps {
   }>;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 const DEFAULT_BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "logly.app";
 
 export default function SettingsPage({ params }: PageProps) {
@@ -82,7 +82,7 @@ export default function SettingsPage({ params }: PageProps) {
   useEffect(() => {
     const loadDomains = async () => {
       try {
-        const response = await fetch(`${API_URL}/settings/domains`, {
+        const response = await fetch(`${API_BASE_URL}/settings/domains`, {
           headers: {
             "Content-Type": "application/json",
             "X-Owner": owner,
@@ -146,7 +146,7 @@ export default function SettingsPage({ params }: PageProps) {
     setIsSavingDomain(true);
 
     try {
-      const response = await fetch(`${API_URL}/settings/domain`, {
+      const response = await fetch(`${API_BASE_URL}/settings/domain`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -192,7 +192,7 @@ export default function SettingsPage({ params }: PageProps) {
     setIsVerifying(true);
 
     try {
-      const response = await fetch(`${API_URL}/settings/domain/verify`, {
+      const response = await fetch(`${API_BASE_URL}/settings/domain/verify`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -231,7 +231,7 @@ export default function SettingsPage({ params }: PageProps) {
 
   const handleRemoveDomain = async (domainToRemove: string) => {
     try {
-      const response = await fetch(`${API_URL}/settings/domain`, {
+      const response = await fetch(`${API_BASE_URL}/settings/domain`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
