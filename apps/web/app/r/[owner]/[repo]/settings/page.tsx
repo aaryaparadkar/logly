@@ -28,6 +28,12 @@ interface RepoDomain {
   status: "pending" | "verified";
   verified: boolean;
   createdAt: string;
+  dnsRecords?: Array<{
+    type: string;
+    name: string;
+    value: string;
+    reason?: string;
+  }>;
 }
 
 interface PageProps {
@@ -68,6 +74,23 @@ export default function SettingsPage({ params }: PageProps) {
 
     return `cname.${baseDomain}`;
   }, [runtimeHostname]);
+  const primaryDomainRecords = useMemo(() => {
+    if (!primaryDomain) {
+      return [];
+    }
+
+    if (primaryDomain.dnsRecords && primaryDomain.dnsRecords.length > 0) {
+      return primaryDomain.dnsRecords;
+    }
+
+    return [
+      {
+        type: "CNAME",
+        name: primaryDomain.domain,
+        value: primaryDomain.cnameTarget || defaultCnameTarget,
+      },
+    ];
+  }, [primaryDomain, defaultCnameTarget]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem(tokenStorageKey) || "";
@@ -169,6 +192,7 @@ export default function SettingsPage({ params }: PageProps) {
           status: data.status,
           verified: data.status === "verified",
           createdAt: new Date().toISOString(),
+          dnsRecords: Array.isArray(data.dnsRecords) ? data.dnsRecords : undefined,
         };
 
         return [
@@ -177,7 +201,7 @@ export default function SettingsPage({ params }: PageProps) {
         ];
       });
       setCustomDomain("");
-      toast.success("Domain configured");
+      toast.success(data.message || "Domain configured");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to save domain",
@@ -213,6 +237,9 @@ export default function SettingsPage({ params }: PageProps) {
                 ...domain,
                 verified: data.verified,
                 status: data.verified ? "verified" : "pending",
+                dnsRecords: Array.isArray(data.dnsRecords)
+                  ? data.dnsRecords
+                  : domain.dnsRecords,
               }
             : domain,
         ),
@@ -525,42 +552,51 @@ export default function SettingsPage({ params }: PageProps) {
                     </div>
                     <div className="p-4 space-y-3">
                       <p className="text-sm text-amber-700">
-                        Add the following CNAME record to your domain&apos;s DNS
+                        Add the following DNS records to your domain&apos;s DNS
                         settings:
                       </p>
                       <p className="text-xs text-amber-700/90">
-                        Point your custom domain to Logly&apos;s dedicated
-                        routing host, not the main app domain.
+                        Add every record shown below, then click Verify DNS.
                       </p>
-                      <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-200">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-xs text-amber-600">
-                            <span className="font-medium">CNAME</span>
-                            <span className="text-amber-400">|</span>
-                            <span>
-                              Host: {primaryDomain.domain.split(".")[0]}
-                            </span>
-                          </div>
-                          <code className="text-sm font-mono text-amber-900">
-                            {primaryDomain.cnameTarget || defaultCnameTarget}
-                          </code>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            copyToClipboard(
-                              primaryDomain.cnameTarget || defaultCnameTarget,
-                            )
-                          }
-                          className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"
-                        >
-                          {copied ? (
-                            <Check className="h-4 w-4" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </Button>
+                      <div className="space-y-2">
+                        {primaryDomainRecords.map((record, index) => {
+                          const copyValue = `${record.type} ${record.name} ${record.value}`;
+
+                          return (
+                            <div
+                              key={`${record.type}-${record.name}-${record.value}-${index}`}
+                              className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-200"
+                            >
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-amber-600">
+                                  <span className="font-medium">{record.type}</span>
+                                  <span className="text-amber-400">|</span>
+                                  <span>Name: {record.name}</span>
+                                </div>
+                                <code className="text-sm font-mono text-amber-900 break-all">
+                                  {record.value}
+                                </code>
+                                {record.reason ? (
+                                  <p className="text-xs text-amber-700/90">
+                                    {record.reason}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => copyToClipboard(copyValue)}
+                                className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+                              >
+                                {copied ? (
+                                  <Check className="h-4 w-4" />
+                                ) : (
+                                  <Copy className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

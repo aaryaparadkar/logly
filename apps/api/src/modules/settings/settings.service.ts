@@ -8,7 +8,7 @@ import { CryptoService } from "./crypto.service";
 import { DatabaseService } from "../../db/database.service";
 import { eq, and, desc } from "drizzle-orm";
 import { changelogs, customDomains } from "../../db/schema";
-import { resolveCname } from "node:dns/promises";
+import { resolve4, resolve6, resolveCname } from "node:dns/promises";
 
 export interface UserSettings {
   hasToken: boolean;
@@ -27,8 +27,17 @@ export interface CustomDomainResponse {
   domain: string;
   cnameTarget: string;
   status: "pending" | "verified";
+  dnsRecords: DnsRecordInstruction[];
+  message?: string;
   owner?: string;
   repo?: string;
+}
+
+export interface DnsRecordInstruction {
+  type: string;
+  name: string;
+  value: string;
+  reason?: string;
 }
 
 export interface RepoCustomDomain {
@@ -37,6 +46,13 @@ export interface RepoCustomDomain {
   status: "pending" | "verified";
   verified: boolean;
   createdAt: string;
+  dnsRecords: DnsRecordInstruction[];
+}
+
+interface VercelDomainStatus {
+  verified: boolean;
+  dnsRecords: DnsRecordInstruction[];
+  message?: string;
 }
 
 @Injectable()
@@ -78,6 +94,209 @@ export class SettingsService {
     return value.trim().toLowerCase().replace(/\.$/, "");
   }
 
+  private getVercelConfig() {
+    const token = process.env.VERCEL_TOKEN;
+    const projectId = process.env.VERCEL_PROJECT_ID;
+    const teamId = process.env.VERCEL_TEAM_ID;
+
+    if (!token || !projectId) {
+      return null;
+    }
+
+    return { token, projectId, teamId };
+  }
+
+  private buildVercelUrl(path: string): string {
+    const config = this.getVercelConfig();
+    if (!config) {
+      throw new Error("Vercel domain automation is not configured");
+    }
+
+    const url = new URL(`https://api.vercel.com${path}`);
+    if (config.teamId) {
+      url.searchParams.set("teamId", config.teamId);
+    }
+
+    return url.toString();
+  }
+
+  private async vercelRequest<T>(
+    path: string,
+    init: RequestInit,
+  ): Promise<T | null> {
+    const config = this.getVercelConfig();
+    if (!config) {
+      return null;
+    }
+
+    const response = await fetch(this.buildVercelUrl(path), {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${config.token}`,
+        "Content-Type": "application/json",
+        ...(init.headers || {}),
+      },
+    });
+
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: { code?: string; message?: string };
+    } & T;
+
+    if (!response.ok) {
+      const message = body?.error?.message || "Vercel API request failed";
+      throw new BadRequestException(message);
+    }
+
+    return body;
+  }
+
+  private getFallbackDnsRecords(domain: string): DnsRecordInstruction[] {
+    return [
+      {
+        type: "CNAME",
+        name: domain,
+        value: this.getCnameTarget(),
+        reason: "Point this domain to Logly routing",
+      },
+    ];
+  }
+
+  private getRecordsFromVercelPayload(payload: any): DnsRecordInstruction[] {
+    const records = Array.isArray(payload?.verification)
+      ? payload.verification
+      : [];
+
+    return records
+      .map((record: any) => {
+        const type =
+          typeof record?.type === "string"
+            ? String(record.type).toUpperCase()
+            : "";
+        const name =
+          typeof record?.domain === "string"
+            ? this.normalizeHostname(record.domain)
+            : "";
+        const value =
+          typeof record?.value === "string"
+            ? this.normalizeHostname(record.value)
+            : "";
+
+        if (!type || !name || !value) {
+          return null;
+        }
+
+        return {
+          type,
+          name,
+          value,
+          reason:
+            typeof record?.reason === "string" ? String(record.reason) : undefined,
+        } satisfies DnsRecordInstruction;
+      })
+      .filter((record: DnsRecordInstruction | null): record is DnsRecordInstruction =>
+        Boolean(record),
+      );
+  }
+
+  private async getVercelDomainStatus(
+    domain: string,
+  ): Promise<VercelDomainStatus | null> {
+    const config = this.getVercelConfig();
+    if (!config) {
+      return null;
+    }
+
+    const details = await this.vercelRequest<any>(
+      `/v9/projects/${config.projectId}/domains/${domain}`,
+      { method: "GET" },
+    );
+
+    const verified = Boolean(details?.verified);
+    const dnsRecords = this.getRecordsFromVercelPayload(details);
+
+    return {
+      verified,
+      dnsRecords,
+      message: verified ? "Domain verified in Vercel" : "Domain pending in Vercel",
+    };
+  }
+
+  private async ensureDomainOnVercel(domain: string): Promise<VercelDomainStatus | null> {
+    const config = this.getVercelConfig();
+    if (!config) {
+      return null;
+    }
+
+    try {
+      await this.vercelRequest<any>(`/v10/projects/${config.projectId}/domains`, {
+        method: "POST",
+        body: JSON.stringify({ name: domain }),
+      });
+    } catch (error) {
+      if (
+        error instanceof BadRequestException &&
+        typeof error.message === "string" &&
+        error.message.toLowerCase().includes("already")
+      ) {
+        // Domain can already exist on the project.
+      } else {
+        throw error;
+      }
+    }
+
+    return this.getVercelDomainStatus(domain);
+  }
+
+  private async triggerVercelDomainVerification(
+    domain: string,
+  ): Promise<VercelDomainStatus | null> {
+    const config = this.getVercelConfig();
+    if (!config) {
+      return null;
+    }
+
+    await this.vercelRequest<any>(
+      `/v9/projects/${config.projectId}/domains/${domain}/verify`,
+      { method: "POST" },
+    );
+
+    return this.getVercelDomainStatus(domain);
+  }
+
+  private async removeDomainFromVercel(domain: string): Promise<void> {
+    const config = this.getVercelConfig();
+    if (!config) {
+      return;
+    }
+
+    await fetch(
+      this.buildVercelUrl(`/v9/projects/${config.projectId}/domains/${domain}`),
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          "Content-Type": "application/json",
+        },
+      },
+    ).catch(() => {
+      // Best effort cleanup.
+    });
+  }
+
+  private async resolveDomainAddresses(domain: string): Promise<boolean> {
+    const [ipv4Result, ipv6Result] = await Promise.allSettled([
+      resolve4(domain),
+      resolve6(domain),
+    ]);
+
+    const hasIpv4 =
+      ipv4Result.status === "fulfilled" && ipv4Result.value.length > 0;
+    const hasIpv6 =
+      ipv6Result.status === "fulfilled" && ipv6Result.value.length > 0;
+
+    return hasIpv4 || hasIpv6;
+  }
+
   async saveToken(
     userId: string,
     token: string,
@@ -102,6 +321,7 @@ export class SettingsService {
       domain,
       cnameTarget: this.getCnameTarget(),
       status: "pending",
+      dnsRecords: this.getFallbackDnsRecords(domain),
     };
   }
 
@@ -151,10 +371,21 @@ export class SettingsService {
         .where(eq(customDomains.id, existingDomain.id));
     }
 
+    const vercelStatus = await this.ensureDomainOnVercel(normalizedDomain);
+    const dnsRecords =
+      vercelStatus?.dnsRecords.length
+        ? vercelStatus.dnsRecords
+        : this.getFallbackDnsRecords(normalizedDomain);
+    const message =
+      vercelStatus?.message ||
+      "Add the DNS records below, then verify once propagation completes.";
+
     return {
       domain: normalizedDomain,
       cnameTarget: this.getCnameTarget(),
       status: "pending",
+      dnsRecords,
+      message,
       owner,
       repo,
     };
@@ -178,13 +409,29 @@ export class SettingsService {
       orderBy: [desc(customDomains.createdAt)],
     });
 
-    return domains.map((domainRecord) => ({
-      domain: domainRecord.domain,
-      cnameTarget: this.getCnameTarget(),
-      status: domainRecord.verified ? "verified" : "pending",
-      verified: Boolean(domainRecord.verified),
-      createdAt: domainRecord.createdAt.toISOString(),
-    }));
+    const withStatus = await Promise.all(
+      domains.map(async (domainRecord) => {
+        const vercelStatus = await this.getVercelDomainStatus(domainRecord.domain)
+          .then((result) => result)
+          .catch(() => null);
+
+        const dnsRecords =
+          vercelStatus?.dnsRecords.length
+            ? vercelStatus.dnsRecords
+            : this.getFallbackDnsRecords(domainRecord.domain);
+
+        return {
+          domain: domainRecord.domain,
+          cnameTarget: this.getCnameTarget(),
+          status: domainRecord.verified ? "verified" : "pending",
+          verified: Boolean(domainRecord.verified),
+          createdAt: domainRecord.createdAt.toISOString(),
+          dnsRecords,
+        } satisfies RepoCustomDomain;
+      }),
+    );
+
+    return withStatus;
   }
 
   async deleteCustomDomain(domain: string, owner: string, repo: string) {
@@ -207,6 +454,8 @@ export class SettingsService {
         ),
       );
 
+    await this.removeDomainFromVercel(normalizedDomain);
+
     const remainingDomains = await db.query.customDomains.findMany({
       where: eq(customDomains.changelogId, changelog.id),
       orderBy: [desc(customDomains.createdAt)],
@@ -224,7 +473,11 @@ export class SettingsService {
 
   async verifyCustomDomain(
     domain: string,
-  ): Promise<{ verified: boolean; message?: string }> {
+  ): Promise<{
+    verified: boolean;
+    message?: string;
+    dnsRecords: DnsRecordInstruction[];
+  }> {
     const normalizedDomain = this.normalizeDomain(domain);
     console.log(`Verifying custom domain: ${domain}`);
 
@@ -240,6 +493,50 @@ export class SettingsService {
     }
 
     const expectedTarget = this.normalizeHostname(this.getCnameTarget());
+    const dnsRecordsFallback = this.getFallbackDnsRecords(normalizedDomain);
+    const vercelStatus = await this.triggerVercelDomainVerification(
+      normalizedDomain,
+    ).catch(() => this.getVercelDomainStatus(normalizedDomain).catch(() => null));
+    const dnsRecords =
+      vercelStatus?.dnsRecords.length
+        ? vercelStatus.dnsRecords
+        : dnsRecordsFallback;
+
+    const hasIpAddress = await this.resolveDomainAddresses(normalizedDomain);
+
+    if (!hasIpAddress) {
+      await db
+        .update(customDomains)
+        .set({ verified: false, verifiedAt: null })
+        .where(eq(customDomains.id, domainRecord.id));
+
+      return {
+        verified: false,
+        message:
+          `${normalizedDomain} does not resolve yet. Add the DNS records below and wait for propagation.`,
+        dnsRecords,
+      };
+    }
+
+    if (vercelStatus) {
+      await db
+        .update(customDomains)
+        .set({
+          verified: vercelStatus.verified,
+          verifiedAt: vercelStatus.verified ? new Date() : null,
+        })
+        .where(eq(customDomains.id, domainRecord.id));
+
+      return {
+        verified: vercelStatus.verified,
+        message:
+          vercelStatus.message ||
+          (vercelStatus.verified
+            ? "Domain verified"
+            : "Domain is not verified in Vercel yet"),
+        dnsRecords,
+      };
+    }
 
     try {
       const cnameRecords = await resolveCname(normalizedDomain);
@@ -261,19 +558,22 @@ export class SettingsService {
         return {
           verified: false,
           message: `CNAME mismatch. Expected ${expectedTarget} but found ${normalizedRecords.join(", ")}`,
+          dnsRecords,
         };
       }
 
-      return { verified: true, message: "Domain verified" };
+      return { verified: true, message: "Domain verified", dnsRecords };
     } catch {
       await db
         .update(customDomains)
         .set({ verified: false, verifiedAt: null })
         .where(eq(customDomains.id, domainRecord.id));
 
-      throw new BadRequestException(
-        `No CNAME record found for ${normalizedDomain}. Add a CNAME pointing to ${expectedTarget} and try again.`,
-      );
+      return {
+        verified: false,
+        message: `No CNAME record found for ${normalizedDomain}. Add a CNAME pointing to ${expectedTarget} and try again.`,
+        dnsRecords,
+      };
     }
   }
 

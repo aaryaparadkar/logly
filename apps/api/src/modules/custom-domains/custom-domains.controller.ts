@@ -20,7 +20,7 @@ export class CustomDomainsController {
     );
 
     if (!mapping) {
-      throw new NotFoundException("Domain not found or not verified");
+      throw new NotFoundException("Domain not found");
     }
 
     return mapping;

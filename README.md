@@ -71,12 +71,15 @@ MISTRAL_API_KEY=...
 ENCRYPTION_SECRET=...
 PORT=3001
 LOGLY_BASE_URL=http://localhost:3000
+VERCEL_TOKEN=...
+VERCEL_PROJECT_ID=...
+VERCEL_TEAM_ID=... # optional
 ```
 
 ### Frontend (apps/web/.env.local)
 
 ```
-NEXT_PUBLIC_API_URL=http://localhost:3001/api
+NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_BASE_DOMAIN=localhost:3000
 ```
 

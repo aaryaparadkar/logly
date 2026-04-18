@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { DatabaseService } from "../../db/database.service";
 import { changelogs, customDomains } from "../../db/schema";
 
@@ -31,12 +31,7 @@ export class CustomDomainsService {
       })
       .from(customDomains)
       .innerJoin(changelogs, eq(customDomains.changelogId, changelogs.id))
-      .where(
-        and(
-          eq(customDomains.domain, normalizedDomain),
-          eq(customDomains.verified, true),
-        ),
-      )
+      .where(eq(customDomains.domain, normalizedDomain))
       .limit(1);
 
     return mapping[0] ?? null;
