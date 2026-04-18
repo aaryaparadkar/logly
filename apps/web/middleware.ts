@@ -14,18 +14,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const normalizedHost = host.toLowerCase().split(":")[0] || host;
   const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN || "logly.app";
   const isCustomDomain =
-    !host.includes(baseDomain) &&
-    !host.includes("localhost:3000") &&
-    !host.includes("localhost:3001");
+    !normalizedHost.includes(baseDomain) &&
+    !normalizedHost.includes("localhost") &&
+    !normalizedHost.includes("127.0.0.1");
 
   if (!isCustomDomain) {
     return NextResponse.next();
   }
 
   try {
-    const domainMapping = await getDomainMapping(host);
+    const domainMapping = await getDomainMapping(normalizedHost);
 
     if (domainMapping) {
       const { owner, repo } = domainMapping;

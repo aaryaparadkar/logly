@@ -1,9 +1,12 @@
-import { Controller, Get, Param } from "@nestjs/common";
+import { Controller, Get, NotFoundException, Param } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { CustomDomainsService } from "./custom-domains.service";
 
 @ApiTags("custom-domains")
 @Controller("custom-domains")
 export class CustomDomainsController {
+  constructor(private readonly customDomainsService: CustomDomainsService) {}
+
   @Get(":domain")
   @ApiOperation({ summary: "Get changelog by custom domain" })
   @ApiResponse({
@@ -12,13 +15,14 @@ export class CustomDomainsController {
   })
   @ApiResponse({ status: 404, description: "Domain not found" })
   async getByDomain(@Param("domain") domain: string) {
-    // In a real implementation, this would query the database
-    // For now, return null to indicate no mapping exists
-    // The database would have:
-    // SELECT c.owner, c.repo FROM custom_domains cd
-    // JOIN changelogs c ON cd.changelog_id = c.id
-    // WHERE cd.domain = :domain AND cd.verified = true
+    const mapping = await this.customDomainsService.getVerifiedDomainMapping(
+      domain,
+    );
 
-    return null;
+    if (!mapping) {
+      throw new NotFoundException("Domain not found or not verified");
+    }
+
+    return mapping;
   }
 }

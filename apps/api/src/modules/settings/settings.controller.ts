@@ -16,7 +16,8 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from "@nestjs/swagger";
-import { IsString, IsNotEmpty } from "class-validator";
+import { Transform } from "class-transformer";
+import { IsString, IsNotEmpty, IsFQDN } from "class-validator";
 
 class TokenDto {
   @IsString()
@@ -25,8 +26,12 @@ class TokenDto {
 }
 
 class DomainDto {
+  @Transform(({ value }) =>
+    typeof value === "string" ? value.trim().toLowerCase().replace(/\.$/, "") : value,
+  )
   @IsString()
   @IsNotEmpty()
+  @IsFQDN({ require_tld: true })
   domain!: string;
 }
 

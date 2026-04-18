@@ -201,7 +201,8 @@ export default function SettingsPage({ params }: PageProps) {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to verify domain");
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || "Failed to verify domain");
       }
 
       const data = await response.json();
@@ -220,10 +221,14 @@ export default function SettingsPage({ params }: PageProps) {
       if (data.verified) {
         toast.success("Domain verified successfully");
       } else {
-        toast.error("DNS verification failed. Please check your CNAME record.");
+        toast.error(
+          data.message || "DNS verification failed. Please check your CNAME record.",
+        );
       }
-    } catch {
-      toast.error("Failed to verify domain");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to verify domain",
+      );
     } finally {
       setIsVerifying(false);
     }
@@ -570,6 +575,10 @@ export default function SettingsPage({ params }: PageProps) {
                   onChange={(e) => setCustomDomain(e.target.value)}
                   className="h-11 bg-card border-border/80"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter a full domain like <code>docs.example.com</code>, not a
+                  partial value like <code>docs.example</code>.
+                </p>
                 <Button
                   onClick={handleSaveDomain}
                   disabled={!customDomain.trim() || isSavingDomain}

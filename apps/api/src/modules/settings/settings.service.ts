@@ -1,8 +1,14 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { CryptoService } from "./crypto.service";
 import { DatabaseService } from "../../db/database.service";
 import { eq, and, desc } from "drizzle-orm";
 import { changelogs, customDomains } from "../../db/schema";
+import { resolveCname } from "node:dns/promises";
 
 export interface UserSettings {
   hasToken: boolean;
@@ -64,6 +70,14 @@ export class SettingsService {
     return `cname.${this.getBaseHost()}`;
   }
 
+  private normalizeDomain(value: string): string {
+    return value.trim().toLowerCase().replace(/\.$/, "");
+  }
+
+  private normalizeHostname(value: string): string {
+    return value.trim().toLowerCase().replace(/\.$/, "");
+  }
+
   async saveToken(
     userId: string,
     token: string,
@@ -96,51 +110,54 @@ export class SettingsService {
     owner: string,
     repo: string,
   ): Promise<CustomDomainResponse> {
+    const normalizedDomain = this.normalizeDomain(domain);
     console.log(`Configuring custom domain: ${domain} for ${owner}/${repo}`);
 
-    try {
-      const db = this.db.getDrizzle();
+    const db = this.db.getDrizzle();
 
-      const existingChangelog = await db.query.changelogs.findFirst({
-        where: and(eq(changelogs.owner, owner), eq(changelogs.repo, repo)),
-      });
+    const existingChangelog = await db.query.changelogs.findFirst({
+      where: and(eq(changelogs.owner, owner), eq(changelogs.repo, repo)),
+    });
 
-      if (existingChangelog) {
-        await db
-          .update(changelogs)
-          .set({ customDomain: domain, updatedAt: new Date() })
-          .where(eq(changelogs.id, existingChangelog.id));
-
-        const existingDomain = await db.query.customDomains.findFirst({
-          where: eq(customDomains.domain, domain),
-        });
-
-        if (!existingDomain) {
-          await db.insert(customDomains).values({
-            domain,
-            changelogId: existingChangelog.id,
-            verified: false,
-          });
-        }
-      }
-
-      return {
-        domain,
-        cnameTarget: this.getCnameTarget(),
-        status: "pending",
-        owner,
-        repo,
-      };
-    } catch (error) {
-      console.error("Error configuring domain:", error);
-      return {
-        domain,
-        cnameTarget: this.getCnameTarget(),
-        status: "pending",
-        owner,
-        repo,
-      };
+    if (!existingChangelog) {
+      throw new NotFoundException(`Repository ${owner}/${repo} not found`);
     }
+
+    const existingDomain = await db.query.customDomains.findFirst({
+      where: eq(customDomains.domain, normalizedDomain),
+    });
+
+    if (existingDomain && existingDomain.changelogId !== existingChangelog.id) {
+      throw new ConflictException(
+        `Domain ${normalizedDomain} is already linked to another changelog`,
+      );
+    }
+
+    await db
+      .update(changelogs)
+      .set({ customDomain: normalizedDomain, updatedAt: new Date() })
+      .where(eq(changelogs.id, existingChangelog.id));
+
+    if (!existingDomain) {
+      await db.insert(customDomains).values({
+        domain: normalizedDomain,
+        changelogId: existingChangelog.id,
+        verified: false,
+      });
+    } else {
+      await db
+        .update(customDomains)
+        .set({ verified: false, verifiedAt: null })
+        .where(eq(customDomains.id, existingDomain.id));
+    }
+
+    return {
+      domain: normalizedDomain,
+      cnameTarget: this.getCnameTarget(),
+      status: "pending",
+      owner,
+      repo,
+    };
   }
 
   async listCustomDomains(
@@ -171,6 +188,7 @@ export class SettingsService {
   }
 
   async deleteCustomDomain(domain: string, owner: string, repo: string) {
+    const normalizedDomain = this.normalizeDomain(domain);
     const db = this.db.getDrizzle();
     const changelog = await db.query.changelogs.findFirst({
       where: and(eq(changelogs.owner, owner), eq(changelogs.repo, repo)),
@@ -184,7 +202,7 @@ export class SettingsService {
       .delete(customDomains)
       .where(
         and(
-          eq(customDomains.domain, domain),
+          eq(customDomains.domain, normalizedDomain),
           eq(customDomains.changelogId, changelog.id),
         ),
       );
@@ -207,31 +225,55 @@ export class SettingsService {
   async verifyCustomDomain(
     domain: string,
   ): Promise<{ verified: boolean; message?: string }> {
+    const normalizedDomain = this.normalizeDomain(domain);
     console.log(`Verifying custom domain: ${domain}`);
 
+    const db = this.db.getDrizzle();
+    const domainRecord = await db.query.customDomains.findFirst({
+      where: eq(customDomains.domain, normalizedDomain),
+    });
+
+    if (!domainRecord) {
+      throw new NotFoundException(
+        `Domain ${normalizedDomain} is not configured for any changelog`,
+      );
+    }
+
+    const expectedTarget = this.normalizeHostname(this.getCnameTarget());
+
     try {
-      const db = this.db.getDrizzle();
+      const cnameRecords = await resolveCname(normalizedDomain);
+      const normalizedRecords = cnameRecords.map((record) =>
+        this.normalizeHostname(record),
+      );
 
-      const domainRecord = await db.query.customDomains.findFirst({
-        where: eq(customDomains.domain, domain),
-      });
+      const isVerified = normalizedRecords.includes(expectedTarget);
 
-      if (domainRecord) {
-        return { verified: true, message: "Domain verified" };
+      await db
+        .update(customDomains)
+        .set({
+          verified: isVerified,
+          verifiedAt: isVerified ? new Date() : null,
+        })
+        .where(eq(customDomains.id, domainRecord.id));
+
+      if (!isVerified) {
+        return {
+          verified: false,
+          message: `CNAME mismatch. Expected ${expectedTarget} but found ${normalizedRecords.join(", ")}`,
+        };
       }
 
-      return {
-        verified: false,
-        message:
-          "DNS verification not yet implemented. Please ensure your CNAME record is configured.",
-      };
-    } catch (error) {
-      console.error("Error verifying domain:", error);
-      return {
-        verified: false,
-        message:
-          "DNS verification not yet implemented. Please ensure your CNAME record is configured.",
-      };
+      return { verified: true, message: "Domain verified" };
+    } catch {
+      await db
+        .update(customDomains)
+        .set({ verified: false, verifiedAt: null })
+        .where(eq(customDomains.id, domainRecord.id));
+
+      throw new BadRequestException(
+        `No CNAME record found for ${normalizedDomain}. Add a CNAME pointing to ${expectedTarget} and try again.`,
+      );
     }
   }
 
