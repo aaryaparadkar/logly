@@ -217,8 +217,6 @@ export default function SettingsPage({ params }: PageProps) {
               <div className="flex flex-wrap gap-3">
                 <a
                   href={`${API_BASE_URL}/export/${owner}/${repo}/dynamic`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
                   <Button variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-1.5" />
@@ -227,8 +225,6 @@ export default function SettingsPage({ params }: PageProps) {
                 </a>
                 <a
                   href={`${API_BASE_URL}/export/${owner}/${repo}/html`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
                   <Button variant="outline" size="sm">
                     Static HTML
@@ -236,8 +232,6 @@ export default function SettingsPage({ params }: PageProps) {
                 </a>
                 <a
                   href={`${API_BASE_URL}/export/${owner}/${repo}/json`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
                   <Button variant="outline" size="sm">
                     JSON
