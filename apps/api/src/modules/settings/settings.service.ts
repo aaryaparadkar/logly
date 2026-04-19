@@ -106,6 +106,17 @@ export class SettingsService {
     return { token, projectId, teamId };
   }
 
+  getVercelConfigStatus(): { configured: boolean; hasToken: boolean; hasProjectId: boolean; projectId?: string } {
+    const hasToken = !!process.env.VERCEL_TOKEN;
+    const hasProjectId = !!process.env.VERCEL_PROJECT_ID;
+    return {
+      configured: hasToken && hasProjectId,
+      hasToken,
+      hasProjectId,
+      projectId: process.env.VERCEL_PROJECT_ID,
+    };
+  }
+
   private buildVercelUrl(path: string): string {
     const config = this.getVercelConfig();
     if (!config) {
@@ -374,14 +385,30 @@ export class SettingsService {
         .where(eq(customDomains.id, existingDomain.id));
     }
 
-    const vercelStatus = await this.ensureDomainOnVercel(normalizedDomain);
+    const vercelConfig = this.getVercelConfig();
+    console.log(
+      `[configureCustomDomain] Vercel config present: ${!!vercelConfig}, domain: ${normalizedDomain}`,
+    );
+
+    const vercelStatus = await this.ensureDomainOnVercel(normalizedDomain).catch((e) => {
+      console.error(`[configureCustomDomain] Vercel error:`, e.message);
+      return null;
+    });
     const dnsRecords =
       vercelStatus?.dnsRecords.length
         ? vercelStatus.dnsRecords
         : this.getFallbackDnsRecords(normalizedDomain);
-    const message =
-      vercelStatus?.message ||
-      "Add the DNS records below, then verify once propagation completes.";
+
+    const message = vercelStatus
+      ? vercelStatus.message ||
+        "Add the DNS records below, wait for propagation, then verify."
+      : vercelConfig
+        ? "Vercel automation failed. Add DNS records manually below, then verify."
+        : "Add DNS records below (Vercel automation not configured), then verify.";
+
+    console.log(
+      `[configureCustomDomain] Stored: ${normalizedDomain}, dnsRecords: ${dnsRecords.length}`,
+    );
 
     return {
       domain: normalizedDomain,
@@ -497,9 +524,21 @@ export class SettingsService {
 
     const expectedTarget = this.normalizeHostname(this.getCnameTarget());
     const dnsRecordsFallback = this.getFallbackDnsRecords(normalizedDomain);
-    const vercelStatus = await this.triggerVercelDomainVerification(
-      normalizedDomain,
-    ).catch(() => this.getVercelDomainStatus(normalizedDomain).catch(() => null));
+    const vercelConfig = this.getVercelConfig();
+
+    let vercelStatus = null;
+    if (vercelConfig) {
+      console.log(
+        `[verifyCustomDomain] Triggering Vercel verification for: ${normalizedDomain}`,
+      );
+      vercelStatus = await this.triggerVercelDomainVerification(normalizedDomain).catch(
+        (e) => {
+          console.error(`[verifyCustomDomain] Vercel error:`, e.message);
+          return this.getVercelDomainStatus(normalizedDomain).catch(() => null);
+        },
+      );
+    }
+
     const dnsRecords =
       vercelStatus?.dnsRecords.length
         ? vercelStatus.dnsRecords

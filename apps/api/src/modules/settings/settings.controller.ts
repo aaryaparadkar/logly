@@ -130,4 +130,11 @@ export class SettingsController {
   async getBaseUrl() {
     return { baseUrl: this.settingsService.getBaseUrl() };
   }
+
+  @Get("vercel-status")
+  @ApiOperation({ summary: "Check Vercel configuration status" })
+  async getVercelStatus() {
+    const status = this.settingsService.getVercelConfigStatus();
+    return status;
+  }
 }
