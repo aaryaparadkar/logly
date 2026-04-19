@@ -220,10 +220,14 @@ export class SettingsService {
       return null;
     }
 
+    console.log(`[getVercelDomainStatus] Checking domain: ${domain}`);
+
     const details = await this.vercelRequest<any>(
       `/v9/projects/${config.projectId}/domains/${domain}`,
       { method: "GET" },
     );
+
+    console.log(`[getVercelDomainStatus] Response:`, JSON.stringify(details));
 
     const verified = Boolean(details?.verified);
     const dnsRecords = this.getRecordsFromVercelPayload(details);
@@ -241,19 +245,44 @@ export class SettingsService {
       return null;
     }
 
+    console.log(`[ensureDomainOnVercel] Adding domain: ${domain} to project: ${config.projectId}`);
+
     try {
-      await this.vercelRequest<any>(`/v10/projects/${config.projectId}/domains`, {
+      // First, try to add domain without project (will create under account)
+      const addResult = await this.vercelRequest<any>(`/v6/domains`, {
         method: "POST",
-        body: JSON.stringify({ name: domain }),
+        body: JSON.stringify({ 
+          name: domain,
+        }),
       });
+      console.log(`[ensureDomainOnVercel] Add without project response:`, JSON.stringify(addResult));
+
+      // Then assign to project
+      if (addResult?.uid) {
+        const assignResult = await this.vercelRequest<any>(
+          `/v6/domains/${addResult.uid}/project`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              projectId: config.projectId,
+              ...(config.teamId ? { teamId: config.teamId } : {})
+            }),
+          },
+        );
+        console.log(`[ensureDomainOnVercel] Assign to project response:`, JSON.stringify(assignResult));
+      }
     } catch (error) {
       if (
         error instanceof BadRequestException &&
         typeof error.message === "string" &&
-        error.message.toLowerCase().includes("already")
+        (error.message.toLowerCase().includes("already") ||
+         error.message.toLowerCase().includes("in use") ||
+         error.message.toLowerCase().includes("taken"))
       ) {
-        // Domain can already exist on the project.
+        console.log(`[ensureDomainOnVercel] Domain already exists or taken, continuing...`);
       } else {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[ensureDomainOnVercel] Error:`, errMsg);
         throw error;
       }
     }
