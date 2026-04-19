@@ -211,18 +211,27 @@ export default function SettingsPage({ params }: PageProps) {
 
             <div className="rounded-xl border border-border/60 bg-card p-4 space-y-4">
               <p className="text-sm text-muted-foreground">
-                Export your changelog as a static HTML or JSON file that you can host on any platform.
+                Export your changelog to host anywhere. Use <strong>dynamic</strong> for auto-updating deployments.
               </p>
               
               <div className="flex flex-wrap gap-3">
+                <a
+                  href={`${API_BASE_URL}/export/${owner}/${repo}/dynamic`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-1.5" />
+                    Dynamic (Auto-Update)
+                  </Button>
+                </a>
                 <a
                   href={`${API_BASE_URL}/export/${owner}/${repo}/html`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   <Button variant="outline" size="sm">
-                    <Download className="h-4 w-4 mr-1.5" />
-                    Export HTML
+                    Static HTML
                   </Button>
                 </a>
                 <a
@@ -231,10 +240,17 @@ export default function SettingsPage({ params }: PageProps) {
                   rel="noopener noreferrer"
                 >
                   <Button variant="outline" size="sm">
-                    <Download className="h-4 w-4 mr-1.5" />
-                    Export JSON
+                    JSON
                   </Button>
                 </a>
+              </div>
+
+              <div className="rounded-lg bg-amber-50 p-3 space-y-2">
+                <p className="text-sm font-medium text-amber-800">Dynamic Export</p>
+                <p className="text-xs text-amber-700">
+                  The dynamic export fetches live data from the API each time it loads, and auto-refreshes every 5 minutes.
+                  Perfect for self-hosted deployments - just set up a redirect or proxy to point to this URL.
+                </p>
               </div>
 
               <p className="text-xs text-muted-foreground">

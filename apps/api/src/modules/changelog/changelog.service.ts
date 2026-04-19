@@ -507,4 +507,173 @@ export class ChangelogService {
     html += "\n</body>\n</html>";
     return html;
   }
+
+  buildDynamicHtml(
+    initialData: ChangelogDataDto,
+    owner: string,
+    repo: string,
+    apiUrl: string,
+  ): string {
+    const typeColors: Record<ChangeType, string> = {
+      feature: "#3b82f6",
+      fix: "#22c55e",
+      improvement: "#8b5cf6",
+      breaking: "#ef4444",
+      docs: "#64748b",
+      chore: "#78716c",
+    };
+
+    // Build initial data without owner/repo fields
+    const initialDataClean = {
+      name: initialData.name,
+      logoUrl: initialData.logoUrl,
+      versions: initialData.versions,
+    };
+    const initialJson = JSON.stringify(initialDataClean).replace(/</g, "\\u003c");
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${initialData.name} Changelog</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; background: #fafafa; }
+    .container { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; font-size: 24px; }
+    h2 { margin-top: 24px; color: #333; font-size: 18px; }
+    h3 { color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 16px; font-weight: 600; }
+    ul { padding-left: 0; list-style: none; }
+    li { margin: 6px 0; padding: 8px 12px; background: #f9fafb; border-radius: 6px; display: flex; align-items: flex-start; gap: 8px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; color: white; text-transform: uppercase; flex-shrink: 0; }
+    .desc { color: #666; font-size: 13px; margin-top: 4px; }
+    .loading { text-align: center; padding: 40px; color: #666; }
+    .error { text-align: center; padding: 40px; color: #ef4444; }
+    .last-updated { text-align: center; padding: 20px; color: #999; font-size: 12px; }
+    .refresh { text-align: center; padding: 20px; }
+    .refresh button { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .refresh button:hover { background: #2563eb; }
+    .refresh button:disabled { background: #9ca3af; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="title">${initialData.name} Changelog</h1>
+    <div id="content">
+      <div class="loading">Loading changelog...</div>
+    </div>
+    <div class="last-updated" id="updated"></div>
+    <div class="refresh"><button id="refreshBtn" onclick="refreshChangelog()">Refresh</button></div>
+  </div>
+
+  <script>
+    const API_URL = ${JSON.stringify(apiUrl)};
+    const OWNER = ${JSON.stringify(owner)};
+    const REPO = ${JSON.stringify(repo)};
+    
+    // Group entries by type
+    function groupByType(entries) {
+      const groups = {};
+      for (const entry of entries) {
+        const type = entry.type || "chore";
+        if (!groups[type]) groups[type] = [];
+        groups[type].push(entry);
+      }
+      return groups;
+    }
+
+    // Render changelog data
+    function render(data) {
+      const content = document.getElementById("content");
+      const title = document.getElementById("title");
+      const updated = document.getElementById("updated");
+      
+      title.textContent = (data.name || "Changelog") + " Changelog";
+      
+      if (!data.versions || data.versions.length === 0) {
+        content.innerHTML = '<div class="loading">No changelog entries found.</div>';
+        return;
+      }
+
+      const typeOrder = ["breaking", "feature", "fix", "improvement", "docs", "chore"];
+      const typeLabels = {
+        breaking: "Breaking Changes",
+        feature: "Features", 
+        fix: "Bug Fixes",
+        improvement: "Improvements",
+        docs: "Documentation",
+        chore: "Chore"
+      };
+
+      let html = "";
+      for (const version of data.versions) {
+        html += "<h2>" + version.version + " - " + version.date + "</h2>";
+        
+        const entries = version.entries.map(e => ({
+          id: e.id || "",
+          type: e.type,
+          title: e.title || "",
+          description: e.description,
+          commitHash: e.commitHash || "",
+          author: e.author || "",
+          date: e.date
+        }));
+        
+        const grouped = groupByType(entries);
+        
+        for (const type of typeOrder) {
+          const entries = grouped[type];
+          if (entries && entries.length > 0) {
+            html += "<h3>" + typeLabels[type] + "</h3><ul>";
+            for (const entry of entries) {
+              html += "<li>";
+              html += '<span class="badge" style="background:' + (${JSON.stringify(JSON.stringify(typeColors))}[type] || "#78716c") + '">' + type + "</span>";
+              html += "<div>";
+              html += "<strong>" + entry.title + "</strong>";
+              if (entry.description) {
+                html += '<div class="desc">' + entry.description + "</div>";
+              }
+              html += "</div>";
+              html += "</li>";
+            }
+            html += "</ul>";
+          }
+        }
+      }
+
+      content.innerHTML = html;
+      updated.textContent = "Last updated: " + new Date().toLocaleString();
+    }
+
+    // Initial data
+    let changelogData = ${initialJson};
+    render(changelogData);
+
+    // Refresh from API
+    async function refreshChangelog() {
+      const btn = document.getElementById("refreshBtn");
+      btn.disabled = true;
+      btn.textContent = "Loading...";
+      
+      try {
+        const res = await fetch(API_URL + "/api/changelogs/" + OWNER + "/" + REPO);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const json = await res.json();
+        changelogData = json.data || json;
+        render(changelogData);
+      } catch (e) {
+        document.getElementById("content").innerHTML = '<div class="error">Error loading changelog: ' + e.message + "</div>";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Refresh";
+      }
+    }
+
+    // Auto-refresh every 5 minutes
+    setInterval(refreshChangelog, 5 * 60 * 1000);
+  </script>
+</body>
+</html>`;
+  }
 }
