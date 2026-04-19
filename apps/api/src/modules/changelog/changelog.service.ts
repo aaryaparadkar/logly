@@ -523,6 +523,33 @@ export class ChangelogService {
       chore: "#78716c",
     };
 
+    const typeLabels: Record<ChangeType, string> = {
+      feature: "Features",
+      fix: "Bug Fixes",
+      improvement: "Improvements",
+      breaking: "Breaking Changes",
+      docs: "Documentation",
+      chore: "Chore",
+    };
+
+    const borderColors: Record<ChangeType, string> = {
+      feature: "border-blue-500/20 bg-blue-50",
+      fix: "border-emerald-500/20 bg-emerald-50",
+      improvement: "border-violet-500/20 bg-violet-50",
+      breaking: "border-red-500/20 bg-red-50",
+      docs: "border-slate-500/20 bg-slate-50",
+      chore: "border-stone-500/20 bg-stone-50",
+    };
+
+    const textColors: Record<ChangeType, string> = {
+      feature: "text-blue-700",
+      fix: "text-emerald-700",
+      improvement: "text-violet-700",
+      breaking: "text-red-700",
+      docs: "text-slate-700",
+      chore: "text-stone-700",
+    };
+
     // Build initial data without owner/repo fields
     const initialDataClean = {
       name: initialData.name,
@@ -530,6 +557,7 @@ export class ChangelogService {
       versions: initialData.versions,
     };
     const initialJson = JSON.stringify(initialDataClean).replace(/</g, "\\u003c");
+    const repoUrl = `https://github.com/${owner}/${repo}`;
 
     return `<!DOCTYPE html>
 <html>
@@ -537,40 +565,80 @@ export class ChangelogService {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${initialData.name} Changelog</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; background: #fafafa; }
-    .container { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; font-size: 24px; }
-    h2 { margin-top: 24px; color: #333; font-size: 18px; }
-    h3 { color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 16px; font-weight: 600; }
-    ul { padding-left: 0; list-style: none; }
-    li { margin: 6px 0; padding: 8px 12px; background: #f9fafb; border-radius: 6px; display: flex; align-items: flex-start; gap: 8px; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; color: white; text-transform: uppercase; flex-shrink: 0; }
-    .desc { color: #666; font-size: 13px; margin-top: 4px; }
-    .loading { text-align: center; padding: 40px; color: #666; }
-    .error { text-align: center; padding: 40px; color: #ef4444; }
-    .last-updated { text-align: center; padding: 20px; color: #999; font-size: 12px; }
-    .refresh { text-align: center; padding: 20px; }
-    .refresh button { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-    .refresh button:hover { background: #2563eb; }
-    .refresh button:disabled { background: #9ca3af; cursor: not-allowed; }
+    :root { --background: #ffffff; --foreground: #0f172a; --muted-foreground: #64748b; --border: #e2e8f0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--background); color: var(--foreground); line-height: 1.6; }
+    .container { max-width: 48rem; margin: 0 auto; padding: 2.5rem 1.5rem; }
+    .header { margin-bottom: 2.5rem; border-b: 1px solid var(--border); padding-bottom: 1.5rem; }
+    .title-row { display: flex; align-items: center; justify-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem; }
+    .title { font-size: 1.5rem; font-weight: 600; color: var(--foreground); display: flex; align-items: center; gap: 0.5rem; }
+    .repo-link { font-size: 0.875rem; color: var(--muted-foreground); }
+    .repo-link a { color: var(--muted-foreground); text-decoration: none; }
+    .repo-link a:hover { text-decoration: underline; }
+    .meta { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--muted-foreground); }
+    .versions { margin-top: 3rem; }
+    .version { margin-top: 3rem; }
+    .version-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .version-tag { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; background: var(--foreground); color: var(--background); border-radius: 0.5rem; font-size: 0.875rem; font-weight: 600; }
+    .version-date { display: inline-flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; color: var(--muted-foreground); }
+    .entries { padding-left: 1rem; border-left: 2px solid var(--border); }
+    .entry { padding: 1.25rem 0; display: flex; gap: 1rem; }
+    .entry:first-child { padding-top: 0; }
+    .entry:last-child { padding-bottom: 0; }
+    .entry:not(:last-child) { border-bottom: 1px solid var(--border); }
+    .type-col { width: 5rem; flex-shrink: 0; }
+    .type-badge { display: inline-flex; align-items: center; justify-content: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.625rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em; border: 1px solid transparent; width: 100%; }
+    .content { flex: 1; min-width: 0; }
+    .entry-title { font-size: 0.9375rem; font-weight: 500; color: var(--foreground); }
+    .entry-desc { margin-top: 0.5rem; font-size: 0.875rem; color: var(--muted-foreground); }
+    .entry-meta { display: flex; align-items: center; gap: 1rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--muted-foreground); }
+    .entry-meta a { display: inline-flex; align-items: center; gap: 0.375rem; }
+    .entry-meta a:hover { color: var(--foreground); }
+    .loading { text-align: center; padding: 3rem; color: var(--muted-foreground); }
+    .error { text-align: center; padding: 3rem; color: #ef4444; }
+    .footer { margin-top: 4rem; border-t: 1px solid var(--border); padding: 1.5rem 0; text-align: center; }
+    .footer a { color: var(--muted-foreground); text-decoration: none; font-size: 0.75rem; }
+    .footer a:hover { text-decoration: underline; }
+    .refresh-btn { background: var(--foreground); color: var(--background); border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.875rem; }
+    .refresh-btn:hover { opacity: 0.9; }
+    .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1 id="title">${initialData.name} Changelog</h1>
+    <header class="header">
+      <div class="title-row">
+        <h1 class="title" id="title">${initialData.name} Changelog</h1>
+      </div>
+      <div class="repo-link">
+        <a href="${repoUrl}" target="_blank" rel="noopener">${owner}/${repo}</a>
+      </div>
+      <div class="meta">
+        <span id="updated"></span>
+      </div>
+    </header>
     <div id="content">
       <div class="loading">Loading changelog...</div>
     </div>
-    <div class="last-updated" id="updated"></div>
-    <div class="refresh"><button id="refreshBtn" onclick="refreshChangelog()">Refresh</button></div>
+    <footer class="footer">
+      <button class="refresh-btn" id="refreshBtn" onclick="refreshChangelog()">Refresh</button>
+      <div style="margin-top: 0.5rem;">
+        Generated with <a href="/">logly</a>
+      </div>
+    </footer>
   </div>
 
   <script>
     const API_URL = ${JSON.stringify(apiUrl)};
     const OWNER = ${JSON.stringify(owner)};
     const REPO = ${JSON.stringify(repo)};
+    const REPO_URL = ${JSON.stringify(repoUrl)};
+    
+    const TYPE_COLORS = ${JSON.stringify(typeColors)};
+    const TYPE_LABELS = ${JSON.stringify(typeLabels)};
+    const BORDER_COLORS = ${JSON.stringify(borderColors)};
+    const TEXT_COLORS = ${JSON.stringify(textColors)};
     
     // Group entries by type
     function groupByType(entries) {
@@ -583,6 +651,13 @@ export class ChangelogService {
       return groups;
     }
 
+    // Format date
+    function formatDate(dateStr) {
+      if (!dateStr) return "";
+      const date = new Date(dateStr);
+      return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    }
+
     // Render changelog data
     function render(data) {
       const content = document.getElementById("content");
@@ -593,23 +668,21 @@ export class ChangelogService {
       
       if (!data.versions || data.versions.length === 0) {
         content.innerHTML = '<div class="loading">No changelog entries found.</div>';
+        updated.textContent = "";
         return;
       }
 
       const typeOrder = ["breaking", "feature", "fix", "improvement", "docs", "chore"];
-      const typeLabels = {
-        breaking: "Breaking Changes",
-        feature: "Features", 
-        fix: "Bug Fixes",
-        improvement: "Improvements",
-        docs: "Documentation",
-        chore: "Chore"
-      };
 
-      let html = "";
+      let html = '<div class="versions">';
       for (const version of data.versions) {
-        html += "<h2>" + version.version + " - " + version.date + "</h2>";
+        html += '<section class="version">';
+        html += '<div class="version-header">';
+        html += '<span class="version-tag">' + version.version + '</span>';
+        html += '<span class="version-date">📅 ' + formatDate(version.date) + '</span>';
+        html += '</div>';
         
+        html += '<div class="entries">';
         const entries = version.entries.map(e => ({
           id: e.id || "",
           type: e.type,
@@ -623,24 +696,34 @@ export class ChangelogService {
         const grouped = groupByType(entries);
         
         for (const type of typeOrder) {
-          const entries = grouped[type];
-          if (entries && entries.length > 0) {
-            html += "<h3>" + typeLabels[type] + "</h3><ul>";
-            for (const entry of entries) {
-              html += "<li>";
-              html += '<span class="badge" style="background:' + (${JSON.stringify(JSON.stringify(typeColors))}[type] || "#78716c") + '">' + type + "</span>";
-              html += "<div>";
-              html += "<strong>" + entry.title + "</strong>";
-              if (entry.description) {
-                html += '<div class="desc">' + entry.description + "</div>";
+          const typeEntries = grouped[type];
+          if (typeEntries && typeEntries.length > 0) {
+            for (const entry of typeEntries) {
+              const colorKey = type === "breaking" ? "breaking" : type;
+              html += '<div class="entry">';
+              html += '<div class="type-col"><span class="type-badge ' + BORDER_COLORS[colorKey] + " " + TEXT_COLORS[colorKey] + '">' + TYPE_LABELS[type] + '</span></div>';
+              html += '<div class="content">';
+              html += '<h4 class="entry-title">' + entry.title + '</h4>';
+              if (entry.description && entry.description !== entry.title) {
+                html += '<p class="entry-desc">' + entry.description + '</p>';
               }
-              html += "</div>";
-              html += "</li>";
+              html += '<div class="entry-meta">';
+              if (entry.commitHash) {
+                html += '<a href="https://github.com/' + OWNER + '/' + REPO + '/commit/' + entry.commitHash + '" target="_blank" rel="noopener"><code>' + entry.commitHash.slice(0, 7) + '</code> ↗</a>';
+              }
+              if (entry.author) {
+                html += '<span>by ' + entry.author + '</span>';
+              }
+              html += '</div>';
+              html += '</div>';
+              html += '</div>';
             }
-            html += "</ul>";
           }
         }
+        html += '</div>';
+        html += '</section>';
       }
+      html += '</div>';
 
       content.innerHTML = html;
       updated.textContent = "Last updated: " + new Date().toLocaleString();

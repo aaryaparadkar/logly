@@ -65,8 +65,7 @@ export class ExportController {
 
     const defaultApiUrl =
       this.configService.get("NEXT_PUBLIC_API_URL") ||
-      this.configService.get("LOGLY_BASE_URL") ||
-      "https://api.logly.app";
+      "https://logly-api.vercel.app";
     const resolvedApiUrl = apiUrl || defaultApiUrl;
 
     return this.changelogService.buildDynamicHtml(data, owner, repo, resolvedApiUrl);
