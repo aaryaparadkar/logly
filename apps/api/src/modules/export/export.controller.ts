@@ -26,7 +26,7 @@ export class ExportController {
     });
     const content = this.changelogService.buildExportMarkdown(data);
     if (res) {
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader("Content-Type", "application/octet-stream");
       res.setHeader("Content-Disposition", `attachment; filename="${repo}-changelog.md"`);
       return res.send(content);
     }
@@ -47,7 +47,7 @@ export class ExportController {
     });
     const content = this.changelogService.buildExportJson(data);
     if (res) {
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Content-Type", "application/octet-stream");
       res.setHeader("Content-Disposition", `attachment; filename="${repo}-changelog.json"`);
       return res.send(content);
     }
@@ -68,7 +68,7 @@ export class ExportController {
     });
     const content = this.changelogService.buildExportHtml(data);
     if (res) {
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Content-Type", "application/octet-stream");
       res.setHeader("Content-Disposition", `attachment; filename="${repo}-changelog.html"`);
       return res.send(content);
     }
