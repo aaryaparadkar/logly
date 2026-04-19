@@ -247,45 +247,14 @@ export class SettingsService {
 
     console.log(`[ensureDomainOnVercel] Adding domain: ${domain} to project: ${config.projectId}`);
 
-    try {
-      // First, try to add domain without project (will create under account)
-      const addResult = await this.vercelRequest<any>(`/v6/domains`, {
-        method: "POST",
-        body: JSON.stringify({ 
-          name: domain,
-        }),
-      });
-      console.log(`[ensureDomainOnVercel] Add without project response:`, JSON.stringify(addResult));
-
-      // Then assign to project
-      if (addResult?.uid) {
-        const assignResult = await this.vercelRequest<any>(
-          `/v6/domains/${addResult.uid}/project`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              projectId: config.projectId,
-              ...(config.teamId ? { teamId: config.teamId } : {})
-            }),
-          },
-        );
-        console.log(`[ensureDomainOnVercel] Assign to project response:`, JSON.stringify(assignResult));
-      }
-    } catch (error) {
-      if (
-        error instanceof BadRequestException &&
-        typeof error.message === "string" &&
-        (error.message.toLowerCase().includes("already") ||
-         error.message.toLowerCase().includes("in use") ||
-         error.message.toLowerCase().includes("taken"))
-      ) {
-        console.log(`[ensureDomainOnVercel] Domain already exists or taken, continuing...`);
-      } else {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        console.error(`[ensureDomainOnVercel] Error:`, errMsg);
-        throw error;
-      }
-    }
+    // The Vercel API requires domain to be verified first, which isn't possible via API alone.
+    // For now, we store the domain in DB and show instructions.
+    // The user must manually add the domain in Vercel Dashboard for now.
+    // This is a known limitation - Vercel requires DNS verification before API attach.
+    console.log(`[ensureDomainOnVercel] Domain requires manual Vercel Dashboard add. DNS is working, so user can add it there.`);
+    
+    // Still return status to check if somehow it's already on the project
+    return this.getVercelDomainStatus(domain);
 
     return this.getVercelDomainStatus(domain);
   }

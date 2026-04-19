@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use, useEffect, useMemo } from "react";
+import { useState, use, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,33 +8,15 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Key,
-  Globe,
   Check,
   ExternalLink,
   Eye,
   EyeOff,
-  FileText,
-  Shield,
-  Copy,
+  Download,
   AlertCircle,
-  Trash2,
   Loader2,
 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api-base-url";
-
-interface RepoDomain {
-  domain: string;
-  cnameTarget: string;
-  status: "pending" | "verified";
-  verified: boolean;
-  createdAt: string;
-  dnsRecords?: Array<{
-    type: string;
-    name: string;
-    value: string;
-    reason?: string;
-  }>;
-}
 
 interface PageProps {
   params: Promise<{
@@ -53,79 +35,18 @@ export default function SettingsPage({ params }: PageProps) {
   const [savedToken, setSavedToken] = useState("");
   const [hasToken, setHasToken] = useState(false);
   const [isSavingToken, setIsSavingToken] = useState(false);
-
-  const [customDomain, setCustomDomain] = useState("");
-  const [domains, setDomains] = useState<RepoDomain[]>([]);
-  const [isSavingDomain, setIsSavingDomain] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [runtimeHostname, setRuntimeHostname] = useState("");
 
   const tokenStorageKey = `github_token_${owner}/${repo}`;
   const maskedToken = savedToken
     ? `${savedToken.slice(0, 4)}_${"•".repeat(Math.max(savedToken.length - 8, 12))}${savedToken.slice(-4)}`
     : "";
-  const primaryDomain = domains[0] || null;
-  const defaultCnameTarget = useMemo(() => {
-    const baseDomain =
-      runtimeHostname && !runtimeHostname.startsWith("localhost")
-        ? runtimeHostname
-        : DEFAULT_BASE_DOMAIN;
-
-    return `cname.${baseDomain}`;
-  }, [runtimeHostname]);
-  const primaryDomainRecords = useMemo(() => {
-    if (!primaryDomain) {
-      return [];
-    }
-
-    if (primaryDomain.dnsRecords && primaryDomain.dnsRecords.length > 0) {
-      return primaryDomain.dnsRecords;
-    }
-
-    return [
-      {
-        type: "CNAME",
-        name: primaryDomain.domain,
-        value: primaryDomain.cnameTarget || defaultCnameTarget,
-      },
-    ];
-  }, [primaryDomain, defaultCnameTarget]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem(tokenStorageKey) || "";
     setSavedToken(storedToken);
     setHasToken(Boolean(storedToken));
   }, [tokenStorageKey]);
-
-  useEffect(() => {
-    setRuntimeHostname(window.location.hostname);
-  }, []);
-
-  useEffect(() => {
-    const loadDomains = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/settings/domains`, {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Owner": owner,
-            "X-Repo": repo,
-          },
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const data = (await response.json()) as RepoDomain[];
-        setDomains(data);
-      } catch {
-        // Ignore background loading failures here.
-      }
-    };
-
-    void loadDomains();
-  }, [owner, repo]);
 
   const handleSaveToken = async () => {
     const trimmedToken = token.trim();
@@ -147,195 +68,35 @@ export default function SettingsPage({ params }: PageProps) {
     }
   };
 
-  const handleRemoveToken = async () => {
-    setIsSavingToken(true);
-
-    try {
-      localStorage.removeItem(tokenStorageKey);
-
-      setHasToken(false);
-      setSavedToken("");
-      setToken("");
-      toast.success("Token removed");
-    } catch {
-      toast.error("Failed to remove token");
-    } finally {
-      setIsSavingToken(false);
-    }
+  const handleDeleteToken = async () => {
+    localStorage.removeItem(tokenStorageKey);
+    setSavedToken("");
+    setHasToken(false);
+    toast.success("Token removed");
   };
 
-  const handleSaveDomain = async () => {
-    if (!customDomain.trim()) return;
-    setIsSavingDomain(true);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/settings/domain`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Owner": owner,
-          "X-Repo": repo,
-        },
-        body: JSON.stringify({ domain: customDomain }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to save domain");
-      }
-
-      const data = await response.json();
-      setDomains((current) => {
-        const nextDomain: RepoDomain = {
-          domain: data.domain,
-          cnameTarget: data.cnameTarget,
-          status: data.status,
-          verified: data.status === "verified",
-          createdAt: new Date().toISOString(),
-          dnsRecords: Array.isArray(data.dnsRecords) ? data.dnsRecords : undefined,
-        };
-
-        return [
-          nextDomain,
-          ...current.filter((domain) => domain.domain !== nextDomain.domain),
-        ];
-      });
-      setCustomDomain("");
-      toast.success(data.message || "Domain configured");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to save domain",
-      );
-    } finally {
-      setIsSavingDomain(false);
-    }
-  };
-
-  const handleVerifyDomain = async () => {
-    if (!primaryDomain) return;
-    setIsVerifying(true);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/settings/domain/verify`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ domain: primaryDomain.domain }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to verify domain");
-      }
-
-      const data = await response.json();
-      setDomains((current) =>
-        current.map((domain, index) =>
-          index === 0
-            ? {
-                ...domain,
-                verified: data.verified,
-                status: data.verified ? "verified" : "pending",
-                dnsRecords: Array.isArray(data.dnsRecords)
-                  ? data.dnsRecords
-                  : domain.dnsRecords,
-              }
-            : domain,
-        ),
-      );
-
-      if (data.verified) {
-        toast.success("Domain verified successfully");
-      } else {
-        toast.error(
-          data.message || "DNS verification failed. Please check your CNAME record.",
-        );
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to verify domain",
-      );
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleRemoveDomain = async (domainToRemove: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/settings/domain`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Owner": owner,
-          "X-Repo": repo,
-        },
-        body: JSON.stringify({ domain: domainToRemove }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to remove domain");
-      }
-
-      setDomains((current) =>
-        current.filter((domain) => domain.domain !== domainToRemove),
-      );
-      toast.success("Domain removed");
-    } catch {
-      toast.error("Failed to remove domain");
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border/60 bg-background">
-        <div className="mx-auto max-w-2xl px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link
-                href={`/r/${owner}/${repo}`}
-                className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span className="text-sm">Back</span>
-              </Link>
-              <div className="h-4 w-px bg-border" />
-              <span className="text-sm font-medium text-foreground">
-                Settings
-              </span>
-            </div>
-            <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="h-7 w-7 rounded-lg bg-foreground flex items-center justify-center shadow-sm">
-                <FileText className="h-3.5 w-3.5 text-background" />
-              </div>
-              <span className="font-semibold text-foreground tracking-tight group-hover:opacity-80 transition-opacity">
-                logly
-              </span>
-            </Link>
-          </div>
+      <header className="border-b border-border/60">
+        <div className="container mx-auto px-4 py-4">
+          <Link
+            href={`/r/${owner}/${repo}`}
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to changelog
+          </Link>
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-6 py-10">
-        <div className="space-y-10">
-          {/* Repository Info */}
-          <div>
-            <h1 className="text-xl font-semibold text-foreground tracking-tight">
-              {owner}/{repo}
-            </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              Configure your changelog settings, integrations, and custom
-              domain.
-            </p>
-          </div>
-
+      <main className="container mx-auto px-4 py-8 max-w-2xl">
+        <div className="space-y-8">
           {/* GitHub Token Section */}
           <section className="space-y-5">
             <div className="flex items-center gap-3">
@@ -347,23 +108,23 @@ export default function SettingsPage({ params }: PageProps) {
                   GitHub Token
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Access private repos or increase rate limits
+                  Required for private repositories
                 </p>
               </div>
             </div>
 
             {hasToken ? (
-              <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
-                <div className="flex items-center justify-between p-4">
+              <div className="rounded-xl border border-border/60 bg-card p-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                      <Shield className="h-5 w-5 text-emerald-600" />
+                      <Check className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">
                         Token configured
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground font-mono">
                         {maskedToken}
                       </p>
                     </div>
@@ -371,70 +132,60 @@ export default function SettingsPage({ params }: PageProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={handleRemoveToken}
-                    disabled={isSavingToken}
+                    onClick={handleDeleteToken}
                     className="text-muted-foreground hover:text-destructive"
                   >
-                    {isSavingToken ? (
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4 mr-1.5" />
-                    )}
                     Remove
                   </Button>
                 </div>
-                <div className="px-4 py-3 bg-secondary/30 border-t border-border/40">
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Check className="h-3 w-3 text-emerald-600" />
-                    Your token is encrypted and stored securely
-                  </p>
-                </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="relative">
-                  <Input
-                    type={showToken ? "text" : "password"}
-                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    className="pr-10 font-mono text-sm h-11 bg-card border-border/80"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowToken(!showToken)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showToken ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Button
-                    onClick={handleSaveToken}
-                    disabled={!token.trim() || isSavingToken}
-                  >
-                    {isSavingToken ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Token"
-                    )}
-                  </Button>
-                  <a
-                    href="https://github.com/settings/tokens"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-                  >
-                    Create a token
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+              <div className="rounded-xl border border-border/60 bg-card p-4 space-y-4">
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Input
+                      type={showToken ? "text" : "password"}
+                      placeholder="ghp_..."
+                      value={token}
+                      onChange={(e) => setToken(e.target.value)}
+                      className="h-11 pr-10 bg-card border-border/80 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showToken ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      onClick={handleSaveToken}
+                      disabled={!token.trim() || isSavingToken}
+                    >
+                      {isSavingToken ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Token"
+                      )}
+                    </Button>
+                    <a
+                      href="https://github.com/settings/tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                    >
+                      Create a token
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
                 </div>
               </div>
             )}
@@ -442,194 +193,54 @@ export default function SettingsPage({ params }: PageProps) {
 
           <hr className="border-border/60" />
 
-          {/* Custom Domain Section */}
+          {/* Export Section */}
           <section className="space-y-5">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-xl bg-secondary flex items-center justify-center">
-                <Globe className="h-4 w-4 text-foreground" />
+                <Download className="h-4 w-4 text-foreground" />
               </div>
               <div>
                 <h2 className="text-sm font-medium text-foreground">
-                  Custom Domain
+                  Export Changelog
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Host your changelog on your own domain
+                  Download your changelog to host anywhere
                 </p>
               </div>
             </div>
 
-            {domains.length > 0 ? (
-              <div className="space-y-4">
-                {domains.map((domain, index) => {
-                  const isPrimary = index === 0;
-                  const isVerified = domain.verified;
-
-                  return (
-                    <div
-                      key={domain.domain}
-                      className="rounded-xl border border-border/60 bg-card overflow-hidden"
-                    >
-                      <div className="flex items-center justify-between p-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                              isVerified ? "bg-emerald-50" : "bg-amber-50"
-                            }`}
-                          >
-                            {isVerified ? (
-                              <Check className="h-5 w-5 text-emerald-600" />
-                            ) : (
-                              <AlertCircle className="h-5 w-5 text-amber-600" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">
-                              {domain.domain}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {isVerified
-                                ? "Verified and active"
-                                : "Pending DNS verification"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {isVerified ? (
-                            <a
-                              href={`https://${domain.domain}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-border/80"
-                              >
-                                <ExternalLink className="h-4 w-4 mr-1.5" />
-                                Visit
-                              </Button>
-                            </a>
-                          ) : isPrimary ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleVerifyDomain}
-                              disabled={isVerifying}
-                              className="border-border/80"
-                            >
-                              {isVerifying ? (
-                                <>
-                                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                  Verifying...
-                                </>
-                              ) : (
-                                "Verify DNS"
-                              )}
-                            </Button>
-                          ) : null}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              void handleRemoveDomain(domain.domain)
-                            }
-                            className="text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {primaryDomain && !primaryDomain.verified && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-amber-200/60 bg-amber-50">
-                      <p className="text-sm font-medium text-amber-800">
-                        DNS Configuration Required
-                      </p>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      <p className="text-sm text-amber-700">
-                        Add the following DNS records to your domain&apos;s DNS
-                        settings:
-                      </p>
-                      <p className="text-xs text-amber-700/90">
-                        Add every record shown below, then click Verify DNS.
-                      </p>
-                      <div className="space-y-2">
-                        {primaryDomainRecords.map((record, index) => {
-                          const copyValue = `${record.type} ${record.name} ${record.value}`;
-
-                          return (
-                            <div
-                              key={`${record.type}-${record.name}-${record.value}-${index}`}
-                              className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-200"
-                            >
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex flex-wrap items-center gap-2 text-xs text-amber-600">
-                                  <span className="font-medium">{record.type}</span>
-                                  <span className="text-amber-400">|</span>
-                                  <span>Name: {record.name}</span>
-                                </div>
-                                <code className="text-sm font-mono text-amber-900 break-all">
-                                  {record.value}
-                                </code>
-                                {record.reason ? (
-                                  <p className="text-xs text-amber-700/90">
-                                    {record.reason}
-                                  </p>
-                                ) : null}
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => copyToClipboard(copyValue)}
-                                className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"
-                              >
-                                {copied ? (
-                                  <Check className="h-4 w-4" />
-                                ) : (
-                                  <Copy className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Input
-                  type="text"
-                  placeholder="changelog.yourdomain.com"
-                  value={customDomain}
-                  onChange={(e) => setCustomDomain(e.target.value)}
-                  className="h-11 bg-card border-border/80"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Enter a full domain like <code>docs.example.com</code>, not a
-                  partial value like <code>docs.example</code>.
-                </p>
-                <Button
-                  onClick={handleSaveDomain}
-                  disabled={!customDomain.trim() || isSavingDomain}
+            <div className="rounded-xl border border-border/60 bg-card p-4 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Export your changelog as a static HTML or JSON file that you can host on any platform.
+              </p>
+              
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={`${API_BASE_URL}/export/${owner}/${repo}/html`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  {isSavingDomain ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    "Add Domain"
-                  )}
-                </Button>
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-1.5" />
+                    Export HTML
+                  </Button>
+                </a>
+                <a
+                  href={`${API_BASE_URL}/export/${owner}/${repo}/json`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-1.5" />
+                    Export JSON
+                  </Button>
+                </a>
               </div>
-            )}
+
+              <p className="text-xs text-muted-foreground">
+                Need help hosting? Check the <Link href="/docs/custom-domains" className="underline hover:text-foreground">docs</Link> for instructions.
+              </p>
+            </div>
           </section>
 
           <hr className="border-border/60" />
