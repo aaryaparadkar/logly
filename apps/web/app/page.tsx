@@ -115,7 +115,7 @@ export default function LandingPage() {
                     <Github className="h-4.5 w-4.5 text-muted-foreground group-focus-within:text-foreground transition-colors" />
                   </div>
                   <Input
-                    type="url"
+                    type="text"
                     placeholder="owner/repo"
                     value={repoUrl}
                     onChange={(e) => setRepoUrl(e.target.value)}
