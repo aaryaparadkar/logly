@@ -48,6 +48,32 @@ export default function SettingsPage({ params }: PageProps) {
     setHasToken(Boolean(storedToken));
   }, [tokenStorageKey]);
 
+  const handleDownload = async (type: string) => {
+    const url = `${API_BASE_URL}/export/${owner}/${repo}/${type}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to download");
+      
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const match = contentDisposition?.match(/filename="([^"]+)"/);
+      const filename = match?.[1] || `${repo}-changelog.${type === "dynamic" ? "html" : type}`;
+      
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+      
+      toast.success(`Downloaded ${filename}`);
+    } catch {
+      toast.error("Failed to download");
+    }
+  };
+
   const handleSaveToken = async () => {
     const trimmedToken = token.trim();
     if (!trimmedToken) return;
@@ -215,28 +241,30 @@ export default function SettingsPage({ params }: PageProps) {
               </p>
               
               <div className="flex flex-wrap gap-3">
-                <a
-                  href={`${API_BASE_URL}/export/${owner}/${repo}/dynamic`}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownload("dynamic")}
                 >
-                  <Button variant="outline" size="sm">
-                    <Download className="h-4 w-4 mr-1.5" />
-                    Dynamic (Auto-Update)
-                  </Button>
-                </a>
-                <a
-                  href={`${API_BASE_URL}/export/${owner}/${repo}/html`}
+                  <Download className="h-4 w-4 mr-1.5" />
+                  Dynamic (Auto-Update)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownload("html")}
                 >
-                  <Button variant="outline" size="sm">
-                    Static HTML
-                  </Button>
-                </a>
-                <a
-                  href={`${API_BASE_URL}/export/${owner}/${repo}/json`}
+                  <Download className="h-4 w-4 mr-1.5" />
+                  Static HTML
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownload("json")}
                 >
-                  <Button variant="outline" size="sm">
-                    JSON
-                  </Button>
-                </a>
+                  <Download className="h-4 w-4 mr-1.5" />
+                  JSON
+                </Button>
               </div>
 
               <div className="rounded-lg bg-amber-50 p-3 space-y-2">
