@@ -1,7 +1,8 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { Controller, Get, Param, Query, Res } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ChangelogService } from "../changelog/changelog.service";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import type { Response } from "express";
 
 @ApiTags("export")
 @Controller("export")
@@ -57,6 +58,7 @@ export class ExportController {
     @Param("owner") owner: string,
     @Param("repo") repo: string,
     @Query("apiUrl") apiUrl?: string,
+    @Res() res?: Response,
   ) {
     const { data } = await this.changelogService.generateChangelog({
       owner,
@@ -68,6 +70,17 @@ export class ExportController {
       "https://logly-api.vercel.app";
     const resolvedApiUrl = apiUrl || defaultApiUrl;
 
-    return this.changelogService.buildDynamicHtml(data, owner, repo, resolvedApiUrl);
+    const html = this.changelogService.buildDynamicHtml(data, owner, repo, resolvedApiUrl);
+
+    if (res) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${repo}-changelog.html"`,
+      );
+      return res.send(html);
+    }
+
+    return html;
   }
 }
