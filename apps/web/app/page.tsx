@@ -30,7 +30,11 @@ export default function LandingPage() {
 
     setIsLoading(true);
 
-    const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+    // Accept formats:
+    // - owner/repo
+    // - github.com/owner/repo
+    // - https://github.com/owner/repo
+    const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/) || repoUrl.match(/^([^/]+)\/([^/]+)$/);
     if (match) {
       const [, owner, repo] = match;
       const cleanRepo = repo.replace(/\.git$/, "");
