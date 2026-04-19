@@ -112,7 +112,7 @@ export default function LandingPage() {
                   </div>
                   <Input
                     type="url"
-                    placeholder="github.com/vercel/next.js"
+                    placeholder="owner/repo"
                     value={repoUrl}
                     onChange={(e) => setRepoUrl(e.target.value)}
                     className="h-13 pl-11 pr-4 text-base bg-card border-border/80 shadow-sm focus:shadow-md transition-shadow"

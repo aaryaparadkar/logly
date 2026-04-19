@@ -1,6 +1,7 @@
 import { fetchChangelog } from "@/lib/api";
 import { ChangelogHeader } from "@/components/changelog/changelog-header";
 import { VersionSection } from "@/components/changelog/version-section";
+import { Logo } from "@/components/logo";
 
 interface PageProps {
   params: Promise<{
@@ -89,15 +90,18 @@ export default async function ChangelogPage({ params }: PageProps) {
 
       <footer className="border-t border-border mt-16">
         <div className="mx-auto max-w-3xl px-6 py-6">
-          <p className="text-xs text-muted-foreground text-center">
-            Generated with{" "}
-            <a
-              href="/"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              logly
-            </a>
-          </p>
+          <div className="flex items-center justify-center gap-2">
+            <Logo className="h-4 w-4 rounded-md" />
+            <p className="text-xs text-muted-foreground text-center">
+              Generated with{" "}
+              <a
+                href="/"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                logly
+              </a>
+            </p>
+          </div>
         </div>
       </footer>
     </div>

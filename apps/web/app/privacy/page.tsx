@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { FileText } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 export const metadata: Metadata = {
@@ -266,9 +265,7 @@ export default function PrivacyPage() {
         <div className="mx-auto max-w-5xl px-6 py-8 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md bg-foreground flex items-center justify-center">
-                <FileText className="h-3 w-3 text-background" />
-              </div>
+              <Logo className="h-6 w-6 rounded-md" />
               <span className="text-sm font-medium text-foreground">logly</span>
             </div>
             <span className="text-sm text-muted-foreground">

@@ -2,12 +2,12 @@ import {
   Github,
   Settings,
   Edit3,
-  FileText,
   ExternalLink,
   Rss,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/logo";
 
 interface ChangelogHeaderProps {
   owner: string;
@@ -56,9 +56,7 @@ export function ChangelogHeader({
       <div className="mx-auto max-w-3xl px-6 py-4">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="h-7 w-7 rounded-lg bg-foreground flex items-center justify-center shadow-sm">
-              <FileText className="h-3.5 w-3.5 text-background" />
-            </div>
+            <Logo className="h-7 w-7 rounded-lg shadow-sm" />
             <span className="font-semibold text-foreground tracking-tight group-hover:opacity-80 transition-opacity">
               logly
             </span>
