@@ -192,6 +192,20 @@ export default function LandingPage() {
                 tailwindcss
               </button>
             </div>
+
+            {/* Embeds */}
+            <div className="flex items-center justify-center gap-2 flex-wrap mt-10">
+              <a href="https://peerlist.io/aaryaaa/project/logly" target="_blank" rel="noreferrer">
+                <img
+                  src="https://peerlist.io/api/v1/projects/embed/PRJHNN7J9KOQNQDEK2OJ8B6DGJKK89?showUpvote=false&theme=light"
+                  alt="logly"
+                  style={{ width: 250, height: 54 }}
+                />
+              </a>
+              <a href="https://www.producthunt.com/products/logly-2?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-logly-2" target="_blank" rel="noopener noreferrer">
+                <img alt="logly - Turn commits into beautiful changelogs | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1127262&theme=light&t=1776749360356" />
+              </a>
+            </div>
           </div>
         </div>
 
